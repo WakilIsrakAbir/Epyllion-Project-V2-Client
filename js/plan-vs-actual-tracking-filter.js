@@ -25,6 +25,46 @@ const PVATF_HEADERS = [
     'Related Dept.'
 ];
 
+function isPvatfUnitProcessDept(deptKey) {
+    return deptKey === 'dyeing' || deptKey === 'delivery' || deptKey === 'deliveryfloor';
+}
+
+function getPvatfHeaders(deptKey) {
+    if (isPvatfUnitProcessDept(deptKey)) {
+        return [
+            'SL', 'Order/Booking No.', 'Buyer', 'Unit', 'Process Name',
+            'Plan Start', 'Plan End', 'Actual Start', 'Actual End',
+            'Start Result', 'End Result', 'Fail Reason', 'Related Dept.'
+        ];
+    }
+    return PVATF_HEADERS;
+}
+
+function extractPvatfUnitAndProcess(dyeingItems) {
+    const invalidStrings = new Set(['', '-', 'n/a', 'select', 'null', 'undefined']);
+    const units = [];
+    const processes = [];
+    if (!dyeingItems || !Array.isArray(dyeingItems)) return { unit: '', processName: '' };
+
+    dyeingItems.forEach(it => {
+        const d = it.itemData || it;
+        const u = (d.Unit !== undefined && d.Unit !== null) ? String(d.Unit).trim()
+            : (it.Unit !== undefined && it.Unit !== null) ? String(it.Unit).trim() : '';
+        if (u) {
+            u.split('+').map(s => s.trim()).filter(Boolean).forEach(part => {
+                if (!invalidStrings.has(part.toLowerCase()) && !units.includes(part)) units.push(part);
+            });
+        }
+        const p = d.ProcessName || d['Process Name'] || d.Process || it.ProcessName || it['Process Name'] || '';
+        if (p) {
+            String(p).trim().split('+').map(s => s.trim()).filter(Boolean).forEach(part => {
+                if (!invalidStrings.has(part.toLowerCase()) && !processes.includes(part)) processes.push(part);
+            });
+        }
+    });
+    return { unit: units.join('+'), processName: processes.join('+') };
+}
+
 let pvatfCurrentDept = 'knitting';
 let pvatfAllRows = [];
 let pvatfFilteredRows = [];
@@ -193,9 +233,28 @@ async function fetchPlanVsActualTrackingFilterData(deptKey) {
             }
             if (!displayBuyer || displayBuyer.toLowerCase() === 'undefined') displayBuyer = 'N/A';
 
+            // Extract unit and processName for dyeing/delivery/deliveryfloor
+            let rowUnit = '';
+            let rowProcessName = '';
+            if (isPvatfUnitProcessDept(deptKey)) {
+                // Prefer server-computed values
+                if (plan.unit || plan.processName) {
+                    rowUnit = plan.unit || '';
+                    rowProcessName = plan.processName || '';
+                } else {
+                    // Client-side fallback from dyeing items
+                    const dyeItems = plan.dyeing || [];
+                    const extracted = extractPvatfUnitAndProcess(dyeItems);
+                    rowUnit = extracted.unit;
+                    rowProcessName = extracted.processName;
+                }
+            }
+
             pvatfAllRows.push({
                 orderNo: plan.orderNo,
                 buyer: displayBuyer,
+                unit: rowUnit,
+                processName: rowProcessName,
                 planStart: planStart,
                 planEnd: planEnd,
                 actualStart: actualStart,
@@ -365,8 +424,11 @@ function renderPvatfPreviewModal(from, to, type, selectedBuyers) {
         `;
     }
 
+    const activeHeaders = getPvatfHeaders(pvatfCurrentDept);
+    const showUnitProcess = isPvatfUnitProcessDept(pvatfCurrentDept);
+
     if (thead) {
-        thead.innerHTML = '<tr>' + PVATF_HEADERS.map(h => `<th class="p-2 border border-gray-300 whitespace-nowrap text-center">${esc(h)}</th>`).join('') + '</tr>';
+        thead.innerHTML = '<tr>' + activeHeaders.map(h => `<th class="p-2 border border-gray-300 whitespace-nowrap text-center">${esc(h)}</th>`).join('') + '</tr>';
     }
 
     if (tbody) {
@@ -385,10 +447,16 @@ function renderPvatfPreviewModal(from, to, type, selectedBuyers) {
                 endBadge = '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Fail</span>';
             }
 
+            const unitProcessCols = showUnitProcess ? `
+                <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(r.unit || '')}</td>
+                <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(r.processName || '')}</td>
+            ` : '';
+
             return `<tr>
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${i + 1}</td>
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(r.orderNo)}</td>
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(r.buyer)}</td>
+                ${unitProcessCols}
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(formatPvatfDisplayDate(r.planStart))}</td>
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(formatPvatfDisplayDate(r.planEnd))}</td>
                 <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${esc(formatPvatfDisplayDate(r.actualStart))}</td>
@@ -443,13 +511,20 @@ function exportPlanVsActualTrackingFilterExcel() {
     const endPassPct = formatPvatfPercent(endPass, totalRows);
     const endFailPct = formatPvatfPercent(endFail, totalRows);
 
-    const matrix = [PVATF_HEADERS];
+    const showUnitProcess = isPvatfUnitProcessDept(pvatfCurrentDept);
+    const excelHeaders = getPvatfHeaders(pvatfCurrentDept);
+    const matrix = [excelHeaders];
 
     pvatfFilteredRows.forEach((r, i) => {
-        matrix.push([
+        const row = [
             i + 1,
             excelOrderNo(r.orderNo),
-            r.buyer || '',
+            r.buyer || ''
+        ];
+        if (showUnitProcess) {
+            row.push(r.unit || '', r.processName || '');
+        }
+        row.push(
             parseExcelDate(r.planStart),
             parseExcelDate(r.planEnd),
             parseExcelDate(r.actualStart),
@@ -458,33 +533,42 @@ function exportPlanVsActualTrackingFilterExcel() {
             r.endResult || '',
             r.failReason || '',
             r.relatedDept || ''
-        ]);
+        );
+        matrix.push(row);
     });
 
     // Append summary statistics row
+    const summaryRow = ['Summary', `Total Rows: ${totalRows}`, ''];
+    if (showUnitProcess) {
+        summaryRow.push(
+            '', '',
+            `Start Plan -> Fail: ${startFail} (${startFailPct}), Pass: ${startPass} (${startPassPct})`,
+            '', '', '',
+            `End Plan -> Fail: ${endFail} (${endFailPct}), Pass: ${endPass} (${endPassPct})`,
+            '', '', ''
+        );
+    } else {
+        summaryRow.push(
+            `Start Plan -> Fail: ${startFail} (${startFailPct}), Pass: ${startPass} (${startPassPct})`,
+            '', '', '',
+            `End Plan -> Fail: ${endFail} (${endFailPct}), Pass: ${endPass} (${endPassPct})`,
+            '', '', ''
+        );
+    }
     matrix.push([]);
-    matrix.push([
-        'Summary',
-        `Total Rows: ${totalRows}`,
-        '',
-        `Start Plan -> Fail: ${startFail} (${startFailPct}), Pass: ${startPass} (${startPassPct})`,
-        '',
-        '',
-        '',
-        `End Plan -> Fail: ${endFail} (${endFailPct}), Pass: ${endPass} (${endPassPct})`,
-        '',
-        '',
-        ''
-    ]);
+    matrix.push(summaryRow);
 
     const ws = XLSX.utils.aoa_to_sheet(matrix, { cellDates: true });
     const range = XLSX.utils.decode_range(ws['!ref']);
+
+    const dateStartCol = showUnitProcess ? 5 : 3;
+    const dateEndCol = showUnitProcess ? 8 : 6;
 
     for (let R = 1; R <= range.e.r; R++) {
         const orderCell = ws[XLSX.utils.encode_cell({ r: R, c: 1 })];
         if (orderCell && orderCell.t === 'n') orderCell.z = '0';
 
-        for (let C = 3; C <= 6; C++) {
+        for (let C = dateStartCol; C <= dateEndCol; C++) {
             const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
             if (cell && cell.v instanceof Date) {
                 cell.t = 'd';
@@ -493,19 +577,37 @@ function exportPlanVsActualTrackingFilterExcel() {
         }
     }
 
-    ws['!cols'] = [
-        { wch: 6 },
-        { wch: 20 },
-        { wch: 25 },
-        { wch: 13 },
-        { wch: 13 },
-        { wch: 13 },
-        { wch: 13 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 40 },
-        { wch: 25 }
-    ];
+    if (showUnitProcess) {
+        ws['!cols'] = [
+            { wch: 6 },
+            { wch: 20 },
+            { wch: 25 },
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 40 },
+            { wch: 25 }
+        ];
+    } else {
+        ws['!cols'] = [
+            { wch: 6 },
+            { wch: 20 },
+            { wch: 25 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 40 },
+            { wch: 25 }
+        ];
+    }
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Tracking Filter');
