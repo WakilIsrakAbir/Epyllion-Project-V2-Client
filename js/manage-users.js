@@ -419,6 +419,43 @@ function makeTemplate(role) {
   return p;
 }
 
+function normalizePermissions(rawPermissions, role) {
+  const template = makeTemplate(role || "Viewer");
+  if (!rawPermissions || typeof rawPermissions !== "object") {
+    return template;
+  }
+
+  // If rawPermissions is an empty object ({})
+  if (Object.keys(rawPermissions).length === 0) {
+    return template;
+  }
+
+  const emptyP = emptyPermissions();
+  const normalized = {
+    menus: {},
+    actions: { ...template.actions, ...(rawPermissions.actions || {}) },
+    buyers: {
+      accessType: rawPermissions.buyers?.accessType || template.buyers?.accessType || "all",
+      buyerIds: Array.isArray(rawPermissions.buyers?.buyerIds)
+        ? rawPermissions.buyers.buyerIds
+        : (template.buyers?.buyerIds || []),
+    },
+    downloads: { ...template.downloads, ...(rawPermissions.downloads || {}) },
+  };
+
+  // Deep merge menus for all known groups
+  Object.keys(emptyP.menus).forEach((group) => {
+    normalized.menus[group] = {
+      ...(template.menus[group] || {}),
+      ...(rawPermissions.menus && rawPermissions.menus[group]
+        ? rawPermissions.menus[group]
+        : {}),
+    };
+  });
+
+  return normalized;
+}
+
 let users = [];
 let createPermissions = makeTemplate("Viewer");
 let permissionDraft = null;
@@ -639,7 +676,7 @@ async function loadUsers(silent = false) {
           ? `${new Date(u.lastActive).toLocaleTimeString()} [diff: ${Math.round((now - new Date(u.lastActive).getTime()) / 1000)}s]`
           : "Never",
         isLive: isLive,
-        permissions: u.permissions || makeTemplate(u.role),
+        permissions: normalizePermissions(u.permissions, u.role),
       };
     });
 
@@ -665,10 +702,16 @@ async function loadUsers(silent = false) {
 }
 
 function countTrue(obj) {
+  if (typeof obj === "boolean") return obj ? 1 : 0;
+  if (!obj || typeof obj !== "object") return 0;
   return Object.values(obj).filter(Boolean).length;
 }
 function flattenMenuCount(menus) {
-  return Object.values(menus).reduce((n, g) => n + countTrue(g), 0);
+  if (!menus || typeof menus !== "object") return 0;
+  return Object.values(menus).reduce((n, g) => {
+    if (typeof g === "boolean") return n + (g ? 1 : 0);
+    return n + countTrue(g);
+  }, 0);
 }
 function totalMenuCount() {
   return MENU_GROUPS.reduce((n, g) => n + g.items.length, 0);
@@ -682,6 +725,7 @@ function totalDownloadCount() {
 }
 
 function permissionCounts(p) {
+  if (!p || typeof p !== "object") return { menu: 0, action: 0, download: 0 };
   return {
     menu: flattenMenuCount(p.menus),
     action: countTrue(p.actions),
@@ -691,12 +735,14 @@ function permissionCounts(p) {
 
 function permissionSummaryHtml(p) {
   const c = permissionCounts(p);
+  const buyerType = p?.buyers?.accessType || "all";
+  const buyerIds = Array.isArray(p?.buyers?.buyerIds) ? p.buyers.buyerIds : [];
   const buyerText =
-    p.buyers.accessType === "all"
+    buyerType === "all"
       ? "All buyers"
-      : p.buyers.accessType === "none"
+      : buyerType === "none"
         ? "No buyer"
-        : `${p.buyers.buyerIds.length} selected`;
+        : `${buyerIds.length} selected`;
   return `<div class="grid grid-cols-2 gap-2">
       <div><span class="text-slate-500">Menu access</span><p class="font-black">${c.menu}/${totalMenuCount()}</p></div>
       <div><span class="text-slate-500">Save/actions</span><p class="font-black">${c.action}/${totalActionCount()}</p></div>
@@ -741,15 +787,17 @@ function updateDashboardStats() {
       JSON.stringify(u.permissions) !== JSON.stringify(makeTemplate(u.role)),
   ).length;
   document.getElementById("statBuyerRestricted").textContent = users.filter(
-    (u) => u.permissions.buyers.accessType === "selected",
+    (u) => u.permissions?.buyers?.accessType === "selected",
   ).length;
 }
 
 function buyerNames(p) {
+  if (!p?.buyers) return "All buyers";
   if (p.buyers.accessType === "all") return "All buyers";
   if (p.buyers.accessType === "none") return "No buyer access";
+  const ids = Array.isArray(p.buyers.buyerIds) ? p.buyers.buyerIds : [];
   return (
-    p.buyers.buyerIds
+    ids
       .map((id) => BUYERS.find((b) => b.id === id)?.name)
       .filter(Boolean)
       .join(", ") || "None selected"
@@ -995,24 +1043,7 @@ function openPermissionBuilder(target) {
     const u = users.find((x) => x.id === target);
     if (!u) return;
 
-    // Merge existing permissions with an empty template to ensure no missing groups
-    const emptyP = emptyPermissions();
-    const existingP = u.permissions || {};
-
-    permissionDraft = {
-      menus: { ...emptyP.menus, ...(existingP.menus || {}) },
-      actions: { ...emptyP.actions, ...(existingP.actions || {}) },
-      buyers: { ...emptyP.buyers, ...(existingP.buyers || {}) },
-      downloads: { ...emptyP.downloads, ...(existingP.downloads || {}) },
-    };
-
-    // Deep merge menus just to be safe
-    Object.keys(emptyP.menus).forEach((group) => {
-      permissionDraft.menus[group] = {
-        ...emptyP.menus[group],
-        ...(permissionDraft.menus[group] || {}),
-      };
-    });
+    permissionDraft = normalizePermissions(u.permissions, u.role);
 
     document.getElementById("permissionModalTitle").textContent =
       `Permissions: ${u.username}`;
