@@ -87,19 +87,19 @@ async function openDetailedView(encodedBookingNo) {
                         GSM: getColData(exItem, ['GSM', 'G.S.M']),
                         RequiredQtyKgs: getColData(exItem, ['RequiredQtyKgs', 'Req Qty', 'Qty']),
                         Buyer: getColData(exItem, ['Buyer', 'BuyerName', 'Customer']),
-                        Allowance: getColData(exItem, ['Allowance %', 'Allowance']),
-                        YarnReq: getColData(exItem, ['Yarn req.', 'YarnReq']),
-                        AllocatedQty: getColData(exItem, ['Allocated Qty', 'AllocatedQty']),
-                        YarnBala: getColData(exItem, ['Yarn bala.', 'YarnBala']),
-                        GreyReq: getColData(exItem, ['Grey Req.', 'GreyReq']),
-                        KnitProd: getColData(exItem, ['Knit Prod.', 'KnitProd']),
-                        KnitBala: getColData(exItem, ['Knit. Bala.', 'KnitBala']),
+                        Allowance: getColData(exItem, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']),
+                        YarnReq: getColData(exItem, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']),
+                        AllocatedQty: getColData(exItem, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']),
+                        YarnBala: getColData(exItem, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']),
+                        GreyReq: getColData(exItem, ['Grey Req.', 'GreyReq', 'Grey Req']),
+                        KnitProd: getColData(exItem, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']),
+                        KnitBala: getColData(exItem, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']),
                         NetReceivedQtyKgs: getColData(exItem, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']),
                         NetDeliveryQtyKgs: getColData(exItem, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']),
                         DeliBal: getColData(exItem, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']),
                         RFD: getColData(exItem, ['RFD']),
-                        Slowmoving: getColData(exItem, ['Slowmoving']),
-                        FFStock: getColData(exItem, ['FF Stock', 'FFStock'])
+                        Slowmoving: getColData(exItem, ['Slowmoving', 'Slow Moving']),
+                        FFStock: getColData(exItem, ['FF Stock', 'FFStock', 'FF_Stock'])
                     };
                 } else if (currentDept === 'yd') {
                     itemData = {
@@ -122,21 +122,26 @@ async function openDetailedView(encodedBookingNo) {
                     itemData = {
                         OrderNo: getColData(exItem, ['BookingNo', 'OrderNo', 'EWO', 'Booking', 'Order No', 'Booking No']),
                         Color: getColData(exItem, ['Color', 'Colour', 'Fab Color']),
-                        RequiredQtyKgs: getColData(exItem, ['RequiredQtyKgs', 'Req Qty', 'Qty']),
+                        RequiredQtyKgs: getColData(exItem, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']),
                         Buyer: getColData(exItem, ['Buyer', 'BuyerName', 'Customer']),
                         Unit: getColData(exItem, ['Unit']),
                         ProcessName: getColData(exItem, ['Process Name', 'ProcessName', 'Process']),
-                        GreyReq: getColData(exItem, ['Grey Req.', 'GreyReq']),
-                        KnitProd: getColData(exItem, ['Knit Prod.', 'KnitProd']),
-                        KnitBala: getColData(exItem, ['Knit. Bala.', 'KnitBala']),
-                        BPQty: getColData(exItem, ['BP Qty', 'BPQty']),
-                        DyeingProd: getColData(exItem, ['Dyeing Prod.', 'DyeingProd']),
-                        DyeingBala: getColData(exItem, ['Dyeing Bala.', 'DyeingBala']),
+                        Allowance: getColData(exItem, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']),
+                        YarnReq: getColData(exItem, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']),
+                        AllocatedQty: getColData(exItem, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']),
+                        YarnBala: getColData(exItem, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']),
+                        GreyReq: getColData(exItem, ['Grey Req.', 'GreyReq', 'Grey Req']),
+                        KnitProd: getColData(exItem, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']),
+                        KnitBala: getColData(exItem, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']),
+                        BPQty: getColData(exItem, ['BP Qty', 'BPQty', 'BP_Qty']),
+                        DyeingProd: getColData(exItem, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']),
+                        DyeingBala: getColData(exItem, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']),
                         NetReceivedQtyKgs: getColData(exItem, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']),
                         NetDeliveryQtyKgs: getColData(exItem, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']),
+                        DeliBal: getColData(exItem, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']),
                         RFD: getColData(exItem, ['RFD']),
-                        Slowmoving: getColData(exItem, ['Slowmoving']),
-                        FFStock: getColData(exItem, ['FF Stock', 'FFStock'])
+                        Slowmoving: getColData(exItem, ['Slowmoving', 'Slow Moving']),
+                        FFStock: getColData(exItem, ['FF Stock', 'FFStock', 'FF_Stock'])
                     };
                 }
 

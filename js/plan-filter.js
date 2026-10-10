@@ -33,12 +33,22 @@ const pfConfigs = {
       "Unit",
       "ProcessName",
       "RequiredQtyKgs",
+      "Allowance",
+      "YarnReq",
+      "AllocatedQty",
+      "YarnBala",
       "GreyReq",
       "KnitProd",
       "KnitBala",
       "BPQty",
       "DyeingProd",
       "DyeingBala",
+      "NetReceivedQtyKgs",
+      "NetDeliveryQtyKgs",
+      "DeliBal",
+      "RFD",
+      "Slowmoving",
+      "FFStock",
       "Plan Start Date",
       "Plan End Date",
       "Plan Type",
@@ -53,6 +63,16 @@ const pfConfigs = {
       "FabricConstruction",
       "GSM",
       "RequiredQtyKgs",
+      "Allowance",
+      "YarnReq",
+      "AllocatedQty",
+      "YarnBala",
+      "GreyReq",
+      "KnitProd",
+      "KnitBala",
+      "BPQty",
+      "DyeingProd",
+      "DyeingBala",
       "NetReceivedQtyKgs",
       "NetDeliveryQtyKgs",
       "DeliBal",
@@ -240,13 +260,50 @@ async function fetchPlanFilterData(deptKey) {
             const orderInfo = orderMap[plan.orderNo] || {};
             let displayBuyer = orderInfo.buyer || plan.buyer || "N/A";
 
+            const src = { ...(item.itemData || {}), ...item };
             const row = {
               OrderNo: plan.orderNo,
               Buyer: displayBuyer,
-              Color: plan.color || "N/A",
-              ...(item.itemData || {}),
-              ...item,
+              Color: getColData(src, ['Color', 'Colour', 'Fab Color']) || plan.color || "N/A",
+              FabricConstruction: getColData(src, ['FabricConstruction', 'Construction', 'Fab Const', 'Fabric']),
+              GSM: getColData(src, ['GSM', 'G.S.M']),
+              RequiredQtyKgs: getColData(src, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']),
+              Allowance: getColData(src, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']),
+              YarnReq: getColData(src, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']),
+              AllocatedQty: getColData(src, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']),
+              YarnBala: getColData(src, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']),
+              GreyReq: getColData(src, ['Grey Req.', 'GreyReq', 'Grey Req']),
+              KnitProd: getColData(src, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']),
+              KnitBala: getColData(src, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']),
+              Unit: getColData(src, ['Unit']),
+              ProcessName: getColData(src, ['Process Name', 'ProcessName', 'Process']),
+              BPQty: getColData(src, ['BP Qty', 'BPQty', 'BP_Qty']),
+              DyeingProd: getColData(src, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']),
+              DyeingBala: getColData(src, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']),
+              NetReceivedQtyKgs: getColData(src, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']),
+              NetDeliveryQtyKgs: getColData(src, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']),
+              DeliBal: getColData(src, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']),
+              RFD: getColData(src, ['RFD']),
+              Slowmoving: getColData(src, ['Slowmoving', 'Slow Moving']),
+              FFStock: getColData(src, ['FFStock', 'FF Stock', 'FF_Stock']),
+              // YD fields
+              'Booking Type': getColData(src, ['Booking Type', 'Type', 'YD Type']),
+              YDB: getColData(src, ['YDB', 'YD B']),
+              'YD Booking Date': getColData(src, ['YD Booking Date']),
+              'Barrier Qty.': getColData(src, ['Barrier Qty.', 'Barrier Qty']),
+              'Workable Qty.': getColData(src, ['Workable Qty.', 'Workable Qty']),
+              'YD REQ.': getColData(src, ['YD REQ.', 'YD REQ', 'Requirement']),
+              DYED: getColData(src, ['DYED', 'Dyed']),
+              'YD BALANCE': getColData(src, ['YD BALANCE', 'YD Balance']),
+              'YD Delivered': getColData(src, ['YD Delivered', 'Delivered']),
+              'YD DELIVERY BALANCE': getColData(src, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']),
             };
+
+            if (!row.DeliBal || Number(row.DeliBal) === 0) {
+              const req = Number(row.RequiredQtyKgs) || 0;
+              const del = Number(row.NetDeliveryQtyKgs) || 0;
+              if (req > 0 && del > 0) row.DeliBal = req - del;
+            }
 
             // Handle date mapping
             const sd =
@@ -296,25 +353,25 @@ async function fetchPlanFilterData(deptKey) {
                 Color: getColData(item, ['Color', 'Colour', 'Fab Color']) || "N/A",
                 FabricConstruction: getColData(item, ['FabricConstruction', 'Construction', 'Fab Const', 'Fabric']),
                 GSM: getColData(item, ['GSM', 'G.S.M']),
-                RequiredQtyKgs: getColData(item, ['RequiredQtyKgs', 'Req Qty', 'Qty']),
-                Allowance: getColData(item, ['Allowance']),
-                YarnReq: getColData(item, ['YarnReq', 'Yarn Req', 'Yarn Req.']),
-                AllocatedQty: getColData(item, ['AllocatedQty', 'Allocated Qty', 'Allocated']),
-                YarnBala: getColData(item, ['YarnBala', 'Yarn Bala', 'Yarn Bala.']),
-                GreyReq: getColData(item, ['Grey Req.', 'GreyReq']),
-                KnitProd: getColData(item, ['Knit Prod.', 'KnitProd']),
-                KnitBala: getColData(item, ['Knit. Bala.', 'KnitBala']),
+                RequiredQtyKgs: getColData(item, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']),
+                Allowance: getColData(item, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']),
+                YarnReq: getColData(item, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']),
+                AllocatedQty: getColData(item, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']),
+                YarnBala: getColData(item, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']),
+                GreyReq: getColData(item, ['Grey Req.', 'GreyReq', 'Grey Req']),
+                KnitProd: getColData(item, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']),
+                KnitBala: getColData(item, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']),
                 Unit: getColData(item, ['Unit']),
                 ProcessName: getColData(item, ['Process Name', 'ProcessName', 'Process']),
-                BPQty: getColData(item, ['BP Qty', 'BPQty']),
-                DyeingProd: getColData(item, ['Dyeing Prod.', 'DyeingProd']),
-                DyeingBala: getColData(item, ['Dyeing Bala.', 'DyeingBala']),
-                NetReceivedQtyKgs: getColData(item, ['NetReceivedQtyKgs', 'NetReceivedQty']),
+                BPQty: getColData(item, ['BP Qty', 'BPQty', 'BP_Qty']),
+                DyeingProd: getColData(item, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']),
+                DyeingBala: getColData(item, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']),
+                NetReceivedQtyKgs: getColData(item, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']),
                 NetDeliveryQtyKgs: getColData(item, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']),
-                DeliBal: getColData(item, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Deli. Bala.', 'Delivery Balance']),
+                DeliBal: getColData(item, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']),
                 RFD: getColData(item, ['RFD']),
-                Slowmoving: getColData(item, ['Slowmoving']),
-                FFStock: getColData(item, ['FFStock', 'FF Stock']),
+                Slowmoving: getColData(item, ['Slowmoving', 'Slow Moving']),
+                FFStock: getColData(item, ['FFStock', 'FF Stock', 'FF_Stock']),
                 // YD fields
                 'Booking Type': getColData(item, ['Booking Type', 'Type', 'YD Type']),
                 YDB: getColData(item, ['YDB', 'YD B']),
@@ -327,6 +384,12 @@ async function fetchPlanFilterData(deptKey) {
                 'YD Delivered': getColData(item, ['YD Delivered', 'Delivered']),
                 'YD DELIVERY BALANCE': getColData(item, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']),
               };
+
+              if (!row.DeliBal || Number(row.DeliBal) === 0) {
+                const req = Number(row.RequiredQtyKgs) || 0;
+                const del = Number(row.NetDeliveryQtyKgs) || 0;
+                if (req > 0 && del > 0) row.DeliBal = req - del;
+              }
 
               // Map order-level dates if item doesn't have them
               let sd = "";
