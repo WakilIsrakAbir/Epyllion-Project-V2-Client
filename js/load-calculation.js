@@ -142,105 +142,269 @@ function showLoadCalculation(menuName) {
     }
 }
 
+// Helper: Resolve plan start, end, and planType based on fallback rules
+function resolveItemPlanDates(dept, savedItem, itemData, order) {
+    let planStart = '';
+    let planEnd = '';
+    let planType = '';
+
+    if (dept === 'yd') {
+        // Priority 1: Tentative & Confirm YD Date from Tentative & Confirm list
+        if (savedItem && (savedItem.planType === 'Confirm' || savedItem.planType === 'Tentative') && savedItem.startDate && savedItem.endDate) {
+            planStart = savedItem.startDate;
+            planEnd = savedItem.endDate;
+            planType = savedItem.planType;
+        } else {
+            // Priority 2: T&A YD Plan (YD T&A Start and YD T&A End) from Order management (YD Plan) menu
+            let ydTnAStart = getColData(itemData, ['YD T&A Start', 'T&A Start', 'YD T&A Start Date', 'YD TNA Start', 'TNA Start', 'Start Date']) || '';
+            let ydTnAEnd = getColData(itemData, ['YD T&A End', 'T&A End', 'YD T&A End Date', 'YD TNA End', 'TNA End', 'End Date']) || '';
+            if (typeof ydTnAStart === 'number') ydTnAStart = formatExcelDate(ydTnAStart);
+            if (typeof ydTnAEnd === 'number') ydTnAEnd = formatExcelDate(ydTnAEnd);
+
+            if (ydTnAStart && ydTnAEnd) {
+                planStart = ydTnAStart;
+                planEnd = ydTnAEnd;
+                planType = 'T&A';
+            } else if (order.yarnDate) {
+                planStart = order.yarnDate;
+                planEnd = order.yarnDate;
+                planType = 'T&A';
+            }
+        }
+    } else if (dept === 'knitting') {
+        // Priority 1: Tentative & Confirm Knitting Date from Tentative & Confirm list
+        if (savedItem && (savedItem.planType === 'Confirm' || savedItem.planType === 'Tentative') && savedItem.startDate && savedItem.endDate) {
+            planStart = savedItem.startDate;
+            planEnd = savedItem.endDate;
+            planType = savedItem.planType;
+        } else {
+            // Priority 2: T&A Knitting Plan (Knitting T&A Start and Knitting T&A End) from Order management (Knitting Plan) menu
+            let knitTnAStart = getColData(itemData, ['TAKnittingStart', 'T&A Knitting Start', 'KnitStart']) || order.knitStart || '';
+            let knitTnAEnd = getColData(itemData, ['TAKnittingEnd', 'T&A Knitting End', 'KnitEnd']) || order.knitEnd || '';
+            if (typeof knitTnAStart === 'number') knitTnAStart = formatExcelDate(knitTnAStart);
+            if (typeof knitTnAEnd === 'number') knitTnAEnd = formatExcelDate(knitTnAEnd);
+
+            if (knitTnAStart && knitTnAEnd) {
+                planStart = knitTnAStart;
+                planEnd = knitTnAEnd;
+                planType = 'T&A';
+            }
+        }
+    } else if (dept === 'dyeing') {
+        // Priority 1: Tentative & Confirm Dyeing Date from Tentative & Confirm list
+        if (savedItem && (savedItem.planType === 'Confirm' || savedItem.planType === 'Tentative') && savedItem.startDate && savedItem.endDate) {
+            planStart = savedItem.startDate;
+            planEnd = savedItem.endDate;
+            planType = savedItem.planType;
+        } else {
+            // Priority 2: T&A Dyeing Plan (Dyeing T&A Start and Dyeing T&A End) from Order management (Dyeing Plan) menu
+            let dyeTnAStart = getColData(itemData, ['TADyeingStart', 'T&A Dyeing Start', 'DyeStart']) || order.dyeStart || '';
+            let dyeTnAEnd = getColData(itemData, ['TADyeingEnd', 'T&A Dyeing End', 'DyeEnd']) || order.dyeEnd || '';
+            if (typeof dyeTnAStart === 'number') dyeTnAStart = formatExcelDate(dyeTnAStart);
+            if (typeof dyeTnAEnd === 'number') dyeTnAEnd = formatExcelDate(dyeTnAEnd);
+
+            if (dyeTnAStart && dyeTnAEnd) {
+                planStart = dyeTnAStart;
+                planEnd = dyeTnAEnd;
+                planType = 'T&A';
+            }
+        }
+    } else if (dept === 'delivery') {
+        // Priority 1: Tentative & Confirm Delivery Date from Tentative & Confirm list
+        if (savedItem && (savedItem.planType === 'Confirm' || savedItem.planType === 'Tentative') && savedItem.startDate && savedItem.endDate) {
+            planStart = savedItem.startDate;
+            planEnd = savedItem.endDate;
+            planType = savedItem.planType;
+        } else {
+            // Priority 2: Delivery Planning (Floor) (Start and End) from Order management (Delivery Planning (Floor)) menu
+            let floorStart = savedItem?.floorStartDate || getColData(itemData, ['floorStartDate', 'Delivery Plan Start (Floor)', 'Floor Start']) || '';
+            let floorEnd = savedItem?.floorEndDate || getColData(itemData, ['floorEndDate', 'Delivery Plan End (Floor)', 'Floor End']) || '';
+            if (typeof floorStart === 'number') floorStart = formatExcelDate(floorStart);
+            if (typeof floorEnd === 'number') floorEnd = formatExcelDate(floorEnd);
+
+            if (floorStart && floorEnd) {
+                planStart = floorStart;
+                planEnd = floorEnd;
+                planType = (savedItem && (savedItem.floorPlanType === 'Confirm' || savedItem.floorPlanType === 'Tentative')) ? savedItem.floorPlanType : 'Floor';
+            } else {
+                // Priority 3: T&A Deli. Start & T&A Deli. End date
+                let deliTnAStart = getColData(itemData, ['TADeliStart', 'T&A Deli. Start', 'DeliStart']) || order.deliStart || '';
+                let deliTnAEnd = getColData(itemData, ['TADeliEnd', 'T&A Deli. End', 'DeliEnd']) || order.deliEnd || '';
+                if (typeof deliTnAStart === 'number') deliTnAStart = formatExcelDate(deliTnAStart);
+                if (typeof deliTnAEnd === 'number') deliTnAEnd = formatExcelDate(deliTnAEnd);
+
+                if (deliTnAStart && deliTnAEnd) {
+                    planStart = deliTnAStart;
+                    planEnd = deliTnAEnd;
+                    planType = 'T&A';
+                }
+            }
+        }
+    } else if (dept === 'deliveryfloor') {
+        // Priority 1: Tentative & Confirm Delivery Planning (Floor) Date from Tentative & Confirm list
+        if (savedItem && (savedItem.floorPlanType === 'Confirm' || savedItem.floorPlanType === 'Tentative') && savedItem.floorStartDate && savedItem.floorEndDate) {
+            planStart = savedItem.floorStartDate;
+            planEnd = savedItem.floorEndDate;
+            planType = savedItem.floorPlanType;
+        } else {
+            // Priority 2: T&A Deli. Start & T&A Deli. End date
+            let deliTnAStart = getColData(itemData, ['TADeliStart', 'T&A Deli. Start', 'DeliStart']) || order.deliStart || '';
+            let deliTnAEnd = getColData(itemData, ['TADeliEnd', 'T&A Deli. End', 'DeliEnd']) || order.deliEnd || '';
+            if (typeof deliTnAStart === 'number') deliTnAStart = formatExcelDate(deliTnAStart);
+            if (typeof deliTnAEnd === 'number') deliTnAEnd = formatExcelDate(deliTnAEnd);
+
+            if (deliTnAStart && deliTnAEnd) {
+                planStart = deliTnAStart;
+                planEnd = deliTnAEnd;
+                planType = 'T&A';
+            }
+        }
+    }
+
+    return { planStart, planEnd, planType };
+}
+
+function buildLoadRowFromItem(order, itemData, dept, planDates) {
+    let row = {};
+    row.OrderNo = order.orderNo;
+    row.Buyer = getColData(itemData, ['Buyer', 'BuyerName', 'Customer']) || order.buyer || '';
+    row.Color = getColData(itemData, ['Color', 'Colour', 'Fab Color']);
+    row.FabricConstruction = getColData(itemData, ['FabricConstruction', 'Construction', 'Fab Const', 'Fabric']);
+    row.GSM = getColData(itemData, ['GSM', 'G.S.M']);
+    row.RequiredQtyKgs = getColData(itemData, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']);
+    row.Allowance = getColData(itemData, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']);
+    row.YarnReq = getColData(itemData, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']);
+    row.AllocatedQty = getColData(itemData, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']);
+    row.YarnBala = getColData(itemData, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']);
+    row.GreyReq = getColData(itemData, ['Grey Req.', 'GreyReq', 'Grey Req']);
+    row.KnitProd = getColData(itemData, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']);
+    row.KnitBala = getColData(itemData, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']);
+    row.BPQty = getColData(itemData, ['BP Qty', 'BPQty', 'BP_Qty']);
+    row.DyeingProd = getColData(itemData, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']);
+    row.DyeingBala = getColData(itemData, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']);
+    row.NetReceivedQtyKgs = getColData(itemData, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']);
+    row.NetDeliveryQtyKgs = getColData(itemData, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']);
+    row.DeliBal = getColData(itemData, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']);
+    row.RFD = getColData(itemData, ['RFD']);
+    row.Slowmoving = getColData(itemData, ['Slowmoving', 'Slow Moving']);
+    row.FFStock = getColData(itemData, ['FF Stock', 'FFStock', 'FF_Stock']);
+    row.Unit = getColData(itemData, ['Unit']);
+    row.ProcessName = getColData(itemData, ['Process Name', 'ProcessName', 'Process']);
+
+    // YD fields
+    row['Booking Type'] = getColData(itemData, ['Booking Type', 'Type', 'YD Type']);
+    row.YDB = getColData(itemData, ['YDB', 'YD B']);
+    row['YD REQ.'] = getColData(itemData, ['YD REQ.', 'YD REQ', 'Requirement']);
+    row.DYED = getColData(itemData, ['DYED', 'Dyed']);
+    row['YD BALANCE'] = getColData(itemData, ['YD BALANCE', 'YD Balance']);
+    row['YD Delivered'] = getColData(itemData, ['YD Delivered', 'Delivered']);
+    row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']);
+
+    // Fallbacks for pending balance quantities if not populated directly
+    if (!row.DeliBal || loadNumber(row.DeliBal) === 0) {
+        const req = loadNumber(row.RequiredQtyKgs);
+        const del = loadNumber(row.NetDeliveryQtyKgs);
+        if (req > 0 && del > 0) row.DeliBal = req - del;
+        else if (req > 0) row.DeliBal = req;
+    }
+    if (!row.KnitBala || loadNumber(row.KnitBala) === 0) {
+        const req = loadNumber(row.GreyReq);
+        const prod = loadNumber(row.KnitProd);
+        if (req > 0 && prod > 0) row.KnitBala = req - prod;
+        else if (req > 0) row.KnitBala = req;
+    }
+    if (!row.DyeingBala || loadNumber(row.DyeingBala) === 0) {
+        const req = loadNumber(row.RequiredQtyKgs) || loadNumber(row.BPQty);
+        const prod = loadNumber(row.DyeingProd);
+        if (req > 0 && prod > 0) row.DyeingBala = req - prod;
+        else if (req > 0) row.DyeingBala = req;
+    }
+    if (!row['YD DELIVERY BALANCE'] || loadNumber(row['YD DELIVERY BALANCE']) === 0) {
+        const req = loadNumber(row['YD REQ.']);
+        const del = loadNumber(row['YD Delivered']);
+        if (req > 0 && del > 0) row['YD DELIVERY BALANCE'] = req - del;
+        else if (req > 0) row['YD DELIVERY BALANCE'] = req;
+    }
+
+    row.planStart = planDates.planStart;
+    row.planEnd = planDates.planEnd;
+    row.planType = planDates.planType;
+
+    return row;
+}
+
+function processOrdersForLoadDepartment(orders, planMap, dept) {
+    const results = [];
+    const actualDept = dept === 'deliveryfloor' ? 'delivery' : dept;
+    const itemsField = `${actualDept}Items`;
+
+    (orders || []).forEach(order => {
+        const planData = (planMap && planMap[order.orderNo]) ? planMap[order.orderNo] : null;
+        const savedItems = (planData && Array.isArray(planData[actualDept])) ? planData[actualDept] : [];
+        const excelItems = Array.isArray(order[itemsField]) ? order[itemsField] : [];
+
+        // If excelItems has rows, process excelItems (with savedItem merge)
+        // If excelItems is empty, process savedItems
+        const baseItems = excelItems.length > 0 ? excelItems : savedItems;
+
+        baseItems.forEach((baseItem, idx) => {
+            let itemData = (baseItem.itemData) ? { ...baseItem.itemData } : { ...baseItem };
+            let savedItem = null;
+
+            if (excelItems.length > 0) {
+                const exId = typeof generateItemId === 'function' ? generateItemId(baseItem, actualDept) : `item_${idx}`;
+                const myColor = String(itemData.Color || itemData.Colour || itemData['Fab Color'] || '').trim().toLowerCase();
+                const myConst = String(itemData.FabricConstruction || itemData.Construction || '').trim().toLowerCase();
+                const myGsm = String(itemData.GSM || '').trim().toLowerCase();
+
+                savedItem = savedItems.find(s => s.itemId === exId)
+                    || savedItems.find(s => {
+                        const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
+                        const sConst = String(s.itemData?.FabricConstruction || s.itemData?.Construction || '').trim().toLowerCase();
+                        const sGsm = String(s.itemData?.GSM || '').trim().toLowerCase();
+                        return sColor && sColor === myColor && (!myConst || sConst === myConst) && (!myGsm || sGsm === myGsm);
+                    })
+                    || savedItems.find(s => {
+                        const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
+                        return sColor && sColor === myColor;
+                    });
+
+                if (savedItem && savedItem.itemData) {
+                    itemData = { ...itemData, ...savedItem.itemData };
+                }
+            } else {
+                savedItem = baseItem;
+            }
+
+            const planDates = resolveItemPlanDates(dept, savedItem, itemData, order);
+            const row = buildLoadRowFromItem(order, itemData, dept, planDates);
+            results.push(row);
+        });
+    });
+
+    return results;
+}
+
 async function fetchLoadCalculationData() {
     globalLoadData = { knitting: [], dyeing: [], delivery: [], yd: [], deliveryfloor: [] };
 
-    // Fetch confirmed + tentative plan data for each department from API
+    // Fetch confirmed + tentative + pending plan data for each department from API
     const depts = ['knitting', 'dyeing', 'delivery', 'yd'];
 
     const fetchPromises = depts.map(async (dept) => {
         try {
-            const res = await fetch(`${API_BASE}/api/orders/report/${dept}`);
+            const res = await fetch(`${API_BASE}/api/orders/report/${dept}?includePending=true`);
             if (!res || !res.ok) return;
             const data = await res.json();
 
             if (!data.orders || !data.planMap) return;
 
-            data.orders.forEach(order => {
-                const planData = data.planMap[order.orderNo];
-                if (!planData || !planData[dept]) return;
+            globalLoadData[dept] = processOrdersForLoadDepartment(data.orders, data.planMap, dept);
 
-                const itemsField = `${dept}Items`;
-                const excelItems = order[itemsField] || [];
-
-                planData[dept].forEach(savedItem => {
-                    if (savedItem.planType !== 'Confirm' && savedItem.planType !== 'Tentative') return;
-
-                    // Get matching Excel item data for this saved plan item
-                    let itemData = savedItem.itemData || {};
-
-                    // Try to find fresher data from Excel items stored in Order
-                    if (excelItems.length > 0 && savedItem.itemId) {
-                        // Match by itemId or by color/construction
-                        const exItem = excelItems.find(ex => {
-                            const exId = generateItemId(ex, dept);
-                            return exId === savedItem.itemId;
-                        });
-                        if (exItem) {
-                            itemData = exItem;
-                        }
-                    }
-
-                    let row = {};
-                    // Normalize using getColData
-                    row.OrderNo = order.orderNo;
-                    row.Buyer = getColData(itemData, ['Buyer', 'BuyerName', 'Customer']) || order.buyer || '';
-                    row.Color = getColData(itemData, ['Color', 'Colour', 'Fab Color']);
-                    row.FabricConstruction = getColData(itemData, ['FabricConstruction', 'Construction', 'Fab Const', 'Fabric']);
-                    row.GSM = getColData(itemData, ['GSM', 'G.S.M']);
-                    row.RequiredQtyKgs = getColData(itemData, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']);
-                    row.Allowance = getColData(itemData, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']);
-                    row.YarnReq = getColData(itemData, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']);
-                    row.AllocatedQty = getColData(itemData, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']);
-                    row.YarnBala = getColData(itemData, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']);
-                    row.GreyReq = getColData(itemData, ['Grey Req.', 'GreyReq']);
-                    row.KnitProd = getColData(itemData, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']);
-                    row.KnitBala = getColData(itemData, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']);
-                    row.BPQty = getColData(itemData, ['BP Qty', 'BPQty', 'BP_Qty']);
-                    row.DyeingProd = getColData(itemData, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']);
-                    row.DyeingBala = getColData(itemData, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']);
-                    row.NetReceivedQtyKgs = getColData(itemData, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']);
-                    row.NetDeliveryQtyKgs = getColData(itemData, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']);
-                    row.DeliBal = getColData(itemData, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']);
-                    row.RFD = getColData(itemData, ['RFD']);
-                    row.Slowmoving = getColData(itemData, ['Slowmoving', 'Slow Moving']);
-                    row.FFStock = getColData(itemData, ['FF Stock', 'FFStock', 'FF_Stock']);
-                    row.Unit = getColData(itemData, ['Unit']);
-                    row.ProcessName = getColData(itemData, ['Process Name', 'ProcessName', 'Process']);
-                    // YD specific fields
-                    row['Booking Type'] = getColData(itemData, ['Booking Type', 'Type', 'YD Type']);
-                    row.YDB = getColData(itemData, ['YDB', 'YD B']);
-                    row['YD REQ.'] = getColData(itemData, ['YD REQ.', 'YD REQ', 'Requirement']);
-                    row.DYED = getColData(itemData, ['DYED', 'Dyed']);
-                    row['YD BALANCE'] = getColData(itemData, ['YD BALANCE', 'YD Balance']);
-                    row['YD Delivered'] = getColData(itemData, ['YD Delivered', 'Delivered']);
-                    row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']);
-
-                    // Calculate DeliBal if missing
-                    if (!row.DeliBal || loadNumber(row.DeliBal) === 0) {
-                        const req = loadNumber(row.RequiredQtyKgs);
-                        const del = loadNumber(row.NetDeliveryQtyKgs);
-                        if (req > 0) row.DeliBal = req - del;
-                    }
-
-                    row.planStart = savedItem.startDate;
-                    row.planEnd = savedItem.endDate;
-                    row.planType = savedItem.planType;
-
-                    globalLoadData[dept].push(row);
-
-                    // Also add to deliveryfloor if it has floor dates
-                    if (dept === 'delivery' && savedItem.floorStartDate && savedItem.floorEndDate) {
-                        if (savedItem.floorPlanType === 'Confirm' || savedItem.floorPlanType === 'Tentative') {
-                            const floorRow = { ...row };
-                            floorRow.planStart = savedItem.floorStartDate;
-                            floorRow.planEnd = savedItem.floorEndDate;
-                            floorRow.planType = savedItem.floorPlanType;
-                            globalLoadData.deliveryfloor.push(floorRow);
-                        }
-                    }
-                });
-            });
+            // Also populate deliveryfloor from delivery data
+            if (dept === 'delivery') {
+                globalLoadData.deliveryfloor = processOrdersForLoadDepartment(data.orders, data.planMap, 'deliveryfloor');
+            }
         } catch (e) {
             console.error(`Load calc fetch error for ${dept}:`, e);
         }
@@ -252,85 +416,15 @@ async function fetchLoadCalculationData() {
 // Fetch data for a single department on-demand (for download click)
 async function ensureLoadDataForDept(dept) {
     if (globalLoadData[dept] && globalLoadData[dept].length > 0) return; // already loaded
-    
+
     const actualDept = dept === 'deliveryfloor' ? 'delivery' : dept;
     try {
-        const res = await fetch(`${API_BASE}/api/orders/report/${actualDept}`);
+        const res = await fetch(`${API_BASE}/api/orders/report/${actualDept}?includePending=true`);
         if (!res || !res.ok) return;
         const data = await res.json();
         if (!data.orders || !data.planMap) return;
 
-        globalLoadData[dept] = [];
-
-        data.orders.forEach(order => {
-            const planData = data.planMap[order.orderNo];
-            if (!planData || !planData[actualDept]) return;
-            const excelItems = order[`${actualDept}Items`] || [];
-
-            planData[actualDept].forEach(savedItem => {
-                if (savedItem.planType !== 'Confirm' && savedItem.planType !== 'Tentative') return;
-                let itemData = savedItem.itemData || {};
-                if (excelItems.length > 0 && savedItem.itemId) {
-                    const exItem = excelItems.find(ex => generateItemId(ex, actualDept) === savedItem.itemId);
-                    if (exItem) itemData = exItem;
-                }
-
-                let row = {};
-                row.OrderNo = order.orderNo;
-                row.Buyer = getColData(itemData, ['Buyer', 'BuyerName', 'Customer']) || order.buyer || '';
-                row.Color = getColData(itemData, ['Color', 'Colour', 'Fab Color']);
-                row.FabricConstruction = getColData(itemData, ['FabricConstruction', 'Construction', 'Fab Const', 'Fabric']);
-                row.GSM = getColData(itemData, ['GSM', 'G.S.M']);
-                row.RequiredQtyKgs = getColData(itemData, ['RequiredQtyKgs', 'Req Qty', 'Qty', 'Order Qty']);
-                row.Allowance = getColData(itemData, ['Allowance %', 'Allowance', 'Wastage %', 'Wastage', 'Allow %', 'Allow']);
-                row.YarnReq = getColData(itemData, ['Yarn req.', 'YarnReq', 'Yarn Req', 'Yarn Req.']);
-                row.AllocatedQty = getColData(itemData, ['Allocated Qty', 'Allocated Qty ', 'AllocatedQty', 'Alloc Qty']);
-                row.YarnBala = getColData(itemData, ['Yarn bala.', 'YarnBala', 'Yarn Bala', 'Yarn Balance']);
-                row.GreyReq = getColData(itemData, ['Grey Req.', 'GreyReq']);
-                row.KnitProd = getColData(itemData, ['Knit Prod.', 'KnitProd', 'Knit Prod', 'Knit Production']);
-                row.KnitBala = getColData(itemData, ['Knit. Bala.', 'KnitBala', 'Knit Bala.', 'Knit Bala', 'Knit. Bal.']);
-                row.BPQty = getColData(itemData, ['BP Qty', 'BPQty', 'BP_Qty']);
-                row.DyeingProd = getColData(itemData, ['Dyeing Prod.', 'DyeingProd', 'Dyeing Prod', 'Dyeing ok', 'Dyeing Production']);
-                row.DyeingBala = getColData(itemData, ['Dyeing Bala.', 'DyeingBala', 'Dyeing Bala', 'Dyeing Bal.']);
-                row.NetReceivedQtyKgs = getColData(itemData, ['NetReceivedQtyKgs', 'NetReceivedQty', 'ReceivedQty']);
-                row.NetDeliveryQtyKgs = getColData(itemData, ['NetDeliveryQtyKgs', 'NetDeliveryQty', 'DeliveryQty']);
-                row.DeliBal = getColData(itemData, ['Deli. Bal.', 'Deli Bal.', 'DeliBal', 'Delivery Balance', 'Deli. Bala.']);
-                row.RFD = getColData(itemData, ['RFD']);
-                row.Slowmoving = getColData(itemData, ['Slowmoving', 'Slow Moving']);
-                row.FFStock = getColData(itemData, ['FF Stock', 'FFStock', 'FF_Stock']);
-                row.Unit = getColData(itemData, ['Unit']);
-                row.ProcessName = getColData(itemData, ['Process Name', 'ProcessName', 'Process']);
-                row['Booking Type'] = getColData(itemData, ['Booking Type', 'Type', 'YD Type']);
-                row.YDB = getColData(itemData, ['YDB', 'YD B']);
-                row['YD REQ.'] = getColData(itemData, ['YD REQ.', 'YD REQ', 'Requirement']);
-                row.DYED = getColData(itemData, ['DYED', 'Dyed']);
-                row['YD BALANCE'] = getColData(itemData, ['YD BALANCE', 'YD Balance']);
-                row['YD Delivered'] = getColData(itemData, ['YD Delivered', 'Delivered']);
-                row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']);
-
-                if (!row.DeliBal || loadNumber(row.DeliBal) === 0) {
-                    const req = loadNumber(row.RequiredQtyKgs);
-                    const del = loadNumber(row.NetDeliveryQtyKgs);
-                    if (req > 0) row.DeliBal = req - del;
-                }
-
-                row.planStart = savedItem.startDate;
-                row.planEnd = savedItem.endDate;
-                row.planType = savedItem.planType;
-                globalLoadData[dept].push(row);
-
-                if (dept === 'deliveryfloor' || (dept === 'delivery' && savedItem.floorStartDate && savedItem.floorEndDate)) {
-                    if (dept === 'delivery' && savedItem.floorPlanType === 'Confirm' || savedItem.floorPlanType === 'Tentative') {
-                        const floorRow = { ...row };
-                        floorRow.planStart = savedItem.floorStartDate;
-                        floorRow.planEnd = savedItem.floorEndDate;
-                        floorRow.planType = savedItem.floorPlanType;
-                        if (!globalLoadData.deliveryfloor) globalLoadData.deliveryfloor = [];
-                        globalLoadData.deliveryfloor.push(floorRow);
-                    }
-                }
-            });
-        });
+        globalLoadData[dept] = processOrdersForLoadDepartment(data.orders, data.planMap, dept);
     } catch (e) {
         console.error(`Load data fetch error for ${dept}:`, e);
     }
@@ -358,7 +452,18 @@ function initLoadMonthSelector() {
 function parseLoadDate(value) {
     if (!value) return null;
     if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    if (typeof value === 'number' && value > 25000 && value < 70000) {
+        const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
     const text = String(value).trim();
+    if (/^\d{5}$/.test(text)) {
+        const num = Number(text);
+        if (num > 25000 && num < 70000) {
+            const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        }
+    }
     const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     const parsed = new Date(text);
@@ -456,7 +561,10 @@ function buildReportData(department) {
     ];
 
     const rows = sourceRows
-        .filter(row => row.planType === 'Confirm' || row.planType === 'Tentative')
+        .filter(row => {
+            const hasDates = Boolean(row.planStart && row.planEnd);
+            return hasDates || row.planType === 'Confirm' || row.planType === 'Tentative';
+        })
         .filter(row => loadNumber(row[config.pendingQtyField]) > 0)
         .map(row => {
             const allocation = calculateLoadAllocation(row[config.pendingQtyField], row.planStart, row.planEnd, reportMonths);
