@@ -712,10 +712,10 @@ function renderActualTable() {
             <td class="p-2 border-r border-gray-200 text-center actual-start-result">${startResultHtml}</td>
             <td class="p-2 border-r border-gray-200 text-center actual-end-result">${endResultHtml}</td>
             <td class="p-2 border-r border-gray-200">
-                <input type="text" class="actual-fail-reason w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Fail Reason..." value="${d.failReason || ''}">
+                <textarea rows="1" class="actual-fail-reason resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Fail Reason...">${d.failReason || ''}</textarea>
             </td>
             <td class="p-2">
-                <input type="text" class="actual-related-dept w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Related Dept..." value="${d.relatedDept || ''}">
+                <textarea rows="1" class="actual-related-dept resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Related Dept...">${d.relatedDept || ''}</textarea>
             </td>
         </tr>`;
     });

@@ -294,6 +294,23 @@
 
         /* ========== END PREMIUM DARK MODE ========== */
 
+        /* --- Resizable Table Inputs (Limitation, Remarks, Fail Reason, Related Dept) --- */
+        .resizable-table-input {
+            resize: both !important;
+            min-width: 90px;
+            min-height: 26px;
+            height: 26px;
+            font-family: inherit;
+            line-height: 1.25;
+            vertical-align: middle;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+        html.dark .resizable-table-input {
+            background-color: #151921 !important;
+            border-color: #2a3346 !important;
+            color: #cbd5e1 !important;
+        }
 
         @supports (-webkit-touch-callout: none) {
             body {

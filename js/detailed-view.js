@@ -253,8 +253,8 @@ async function openDetailedView(encodedBookingNo) {
                         <option value="Tentative" ${item.planType === 'Tentative' ? 'selected' : ''}>Tentative</option>
                     </select>
                 </td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-limitation w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation" value="${item.limitation || ''}"></td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-remarks w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes" value="${item.remarks || ''}"></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-limitation resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation">${item.limitation || ''}</textarea></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-remarks resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes">${item.remarks || ''}</textarea></td>
             `;
 
             
@@ -326,8 +326,8 @@ async function openDetailedView(encodedBookingNo) {
                         <option value="Tentative" ${item.planType === 'Tentative' ? 'selected' : ''}>Tentative</option>
                     </select>
                 </td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-limitation w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation" value="${item.limitation || ''}"></td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-remarks w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes" value="${item.remarks || ''}"></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-limitation resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation">${item.limitation || ''}</textarea></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-remarks resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes">${item.remarks || ''}</textarea></td>
             `;
 
             const numCols = ['BPQty', 'DyeingProd', 'DyeingBala', 'KnitProd', 'KnitBala'];
@@ -406,8 +406,8 @@ async function openDetailedView(encodedBookingNo) {
                         <option value="Tentative" ${item.planType === 'Tentative' ? 'selected' : ''}>Tentative</option>
                     </select>
                 </td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-limitation w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation" value="${item.limitation || ''}"></td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-remarks w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes" value="${item.remarks || ''}"></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-limitation resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation">${item.limitation || ''}</textarea></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-remarks resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes">${item.remarks || ''}</textarea></td>
             `;
 
             itemHtml += `
@@ -444,8 +444,8 @@ async function openDetailedView(encodedBookingNo) {
                         <option value="Tentative" ${item.planType === 'Tentative' ? 'selected' : ''}>Tentative</option>
                     </select>
                 </td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-limitation w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation" value="${item.limitation || ''}"></td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-remarks w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Remarks" value="${item.remarks || ''}"></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-limitation resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation">${item.limitation || ''}</textarea></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-remarks resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Remarks">${item.remarks || ''}</textarea></td>
             `;
 
             let knitPlan = { start: '', end: '' };
@@ -538,8 +538,8 @@ async function openDetailedView(encodedBookingNo) {
                         <option value="Tentative" ${item.planType === 'Tentative' ? 'selected' : ''}>Tentative</option>
                     </select>
                 </td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-limitation w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation" value="${item.limitation || ''}"></td>
-                <td class="p-2 border-r border-gray-300"><input type="text" class="row-remarks w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes" value="${item.remarks || ''}"></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-limitation resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Limitation">${item.limitation || ''}</textarea></td>
+                <td class="p-2 border-r border-gray-300"><textarea rows="1" class="row-remarks resizable-table-input w-full p-1 border border-gray-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Notes">${item.remarks || ''}</textarea></td>
             `;
         }
 
