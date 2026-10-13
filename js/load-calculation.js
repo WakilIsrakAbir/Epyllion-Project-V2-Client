@@ -301,28 +301,28 @@ function buildLoadRowFromItem(order, itemData, dept, planDates) {
     row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']);
 
     // Fallbacks for pending balance quantities if not populated directly
-    if (!row.DeliBal || loadNumber(row.DeliBal) === 0) {
+    if (row.DeliBal === '' || row.DeliBal === null || row.DeliBal === undefined) {
         const req = loadNumber(row.RequiredQtyKgs);
         const del = loadNumber(row.NetDeliveryQtyKgs);
-        if (req > 0 && del > 0) row.DeliBal = req - del;
+        if (req > 0 && del > 0) row.DeliBal = Math.max(0, req - del);
         else if (req > 0) row.DeliBal = req;
     }
-    if (!row.KnitBala || loadNumber(row.KnitBala) === 0) {
+    if (row.KnitBala === '' || row.KnitBala === null || row.KnitBala === undefined) {
         const req = loadNumber(row.GreyReq);
         const prod = loadNumber(row.KnitProd);
-        if (req > 0 && prod > 0) row.KnitBala = req - prod;
+        if (req > 0 && prod > 0) row.KnitBala = Math.max(0, req - prod);
         else if (req > 0) row.KnitBala = req;
     }
-    if (!row.DyeingBala || loadNumber(row.DyeingBala) === 0) {
+    if (row.DyeingBala === '' || row.DyeingBala === null || row.DyeingBala === undefined) {
         const req = loadNumber(row.RequiredQtyKgs) || loadNumber(row.BPQty);
         const prod = loadNumber(row.DyeingProd);
-        if (req > 0 && prod > 0) row.DyeingBala = req - prod;
+        if (req > 0 && prod > 0) row.DyeingBala = Math.max(0, req - prod);
         else if (req > 0) row.DyeingBala = req;
     }
-    if (!row['YD DELIVERY BALANCE'] || loadNumber(row['YD DELIVERY BALANCE']) === 0) {
+    if (row['YD DELIVERY BALANCE'] === '' || row['YD DELIVERY BALANCE'] === null || row['YD DELIVERY BALANCE'] === undefined) {
         const req = loadNumber(row['YD REQ.']);
         const del = loadNumber(row['YD Delivered']);
-        if (req > 0 && del > 0) row['YD DELIVERY BALANCE'] = req - del;
+        if (req > 0 && del > 0) row['YD DELIVERY BALANCE'] = Math.max(0, req - del);
         else if (req > 0) row['YD DELIVERY BALANCE'] = req;
     }
 
@@ -352,10 +352,18 @@ function processOrdersForLoadDepartment(orders, planMap, dept) {
             let savedItem = null;
 
             if (excelItems.length > 0) {
-                const exId = typeof generateItemId === 'function' ? generateItemId(baseItem, actualDept) : `item_${idx}`;
+                const myOrderNo = String(itemData.OrderNo || order.orderNo || '').trim();
                 const myColor = String(itemData.Color || itemData.Colour || itemData['Fab Color'] || '').trim().toLowerCase();
-                const myConst = String(itemData.FabricConstruction || itemData.Construction || '').trim().toLowerCase();
-                const myGsm = String(itemData.GSM || '').trim().toLowerCase();
+                const myConst = String(itemData.FabricConstruction || itemData.Construction || itemData.Fabric || '').trim().toLowerCase();
+                const myGsm = String(itemData.GSM || itemData['G.S.M'] || '').trim().toLowerCase();
+
+                const normItem = {
+                    OrderNo: myOrderNo,
+                    Color: myColor,
+                    FabricConstruction: myConst,
+                    GSM: myGsm
+                };
+                const exId = typeof generateItemId === 'function' ? generateItemId(normItem, actualDept) : `item_${idx}`;
 
                 savedItem = savedItems.find(s => s.itemId === exId)
                     || savedItems.find(s => {
@@ -369,8 +377,54 @@ function processOrdersForLoadDepartment(orders, planMap, dept) {
                         return sColor && sColor === myColor;
                     });
 
+                // ONLY merge user planning inputs from savedItem — NEVER overwrite fresh Excel production/tracking data!
                 if (savedItem && savedItem.itemData) {
-                    itemData = { ...itemData, ...savedItem.itemData };
+                    if (savedItem.itemData.Unit) itemData.Unit = savedItem.itemData.Unit;
+                    if (savedItem.itemData.ProcessName) itemData.ProcessName = savedItem.itemData.ProcessName;
+                    if (savedItem.itemData['Process Name']) itemData['Process Name'] = savedItem.itemData['Process Name'];
+                    if (savedItem.itemData['Barrier Qty.']) itemData['Barrier Qty.'] = savedItem.itemData['Barrier Qty.'];
+                    if (savedItem.itemData['Workable Qty.']) itemData['Workable Qty.'] = savedItem.itemData['Workable Qty.'];
+                }
+
+                // Cross-department sync: If dyeing is missing GreyReq / KnitProd / KnitBala, enrich from order.knittingItems
+                if (actualDept === 'dyeing' && Array.isArray(order.knittingItems) && order.knittingItems.length > 0) {
+                    const knitMatches = order.knittingItems.filter(k => String(k.Color || k.Colour || k['Fab Color'] || '').trim().toLowerCase() === myColor);
+                    if (knitMatches.length > 0) {
+                        const existingGrey = getColData(itemData, ['Grey Req.', 'GreyReq', 'Grey Req']);
+                        const existingKnitProd = getColData(itemData, ['Knit Prod.', 'KnitProd', 'Knit Prod']);
+                        const existingKnitBala = getColData(itemData, ['Knit. Bala.', 'KnitBala', 'Knit Bala']);
+                        if (!existingGrey || existingGrey === '') {
+                            const sum = knitMatches.reduce((acc, k) => acc + loadNumber(getColData(k, ['Grey Req.', 'GreyReq', 'Grey Req'])), 0);
+                            if (sum > 0) itemData['Grey Req.'] = sum;
+                        }
+                        if (!existingKnitProd || existingKnitProd === '') {
+                            const sum = knitMatches.reduce((acc, k) => acc + loadNumber(getColData(k, ['Knit Prod.', 'KnitProd', 'Knit Prod'])), 0);
+                            if (sum > 0) itemData['Knit Prod.'] = sum;
+                        }
+                        if (!existingKnitBala || existingKnitBala === '') {
+                            const sum = knitMatches.reduce((acc, k) => acc + loadNumber(getColData(k, ['Knit. Bala.', 'KnitBala', 'Knit Bala'])), 0);
+                            if (sum > 0) itemData['Knit. Bala.'] = sum;
+                        }
+                    }
+                }
+
+                // Cross-department sync: If delivery is missing knitting tracking fields, enrich from order.knittingItems
+                if (actualDept === 'delivery' && Array.isArray(order.knittingItems) && order.knittingItems.length > 0) {
+                    const knitMatch = order.knittingItems.find(k => {
+                        const kColor = String(k.Color || k.Colour || k['Fab Color'] || '').trim().toLowerCase();
+                        const kConst = String(k.FabricConstruction || k.Construction || k.Fabric || '').trim().toLowerCase();
+                        const kGsm = String(k.GSM || k['G.S.M'] || '').trim().toLowerCase();
+                        return kColor === myColor && (!myConst || kConst === myConst) && (!myGsm || kGsm === myGsm);
+                    }) || order.knittingItems.find(k => String(k.Color || k.Colour || k['Fab Color'] || '').trim().toLowerCase() === myColor);
+                    if (knitMatch) {
+                        if (!getColData(itemData, ['Grey Req.', 'GreyReq'])) itemData['Grey Req.'] = getColData(knitMatch, ['Grey Req.', 'GreyReq']);
+                        if (!getColData(itemData, ['Knit Prod.', 'KnitProd'])) itemData['Knit Prod.'] = getColData(knitMatch, ['Knit Prod.', 'KnitProd']);
+                        if (!getColData(itemData, ['Knit. Bala.', 'KnitBala'])) itemData['Knit. Bala.'] = getColData(knitMatch, ['Knit. Bala.', 'KnitBala']);
+                        if (!getColData(itemData, ['Allowance %', 'Allowance'])) itemData['Allowance %'] = getColData(knitMatch, ['Allowance %', 'Allowance', 'Wastage %']);
+                        if (!getColData(itemData, ['Yarn req.', 'YarnReq'])) itemData['Yarn req.'] = getColData(knitMatch, ['Yarn req.', 'YarnReq']);
+                        if (!getColData(itemData, ['Allocated Qty', 'AllocatedQty'])) itemData['Allocated Qty'] = getColData(knitMatch, ['Allocated Qty', 'AllocatedQty']);
+                        if (!getColData(itemData, ['Yarn bala.', 'YarnBala'])) itemData['Yarn bala.'] = getColData(knitMatch, ['Yarn bala.', 'YarnBala']);
+                    }
                 }
             } else {
                 savedItem = baseItem;
