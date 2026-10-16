@@ -469,6 +469,178 @@
             color: #ffffff;
             border-color: #f97316;
         }
+
+        /* ========== REPORT SCREEN & A4 LANDSCAPE PRINT ENGINE ========== */
+        .report-screen-title {
+            display: flex;
+        }
+
+        #reportSheet {
+            transform-origin: top left;
+            transition: transform 0.15s ease-out;
+        }
+
+        #reportActionToolbar {
+            transition: padding-right 0.15s ease;
+        }
+
+        #printPagesContainer {
+            display: none;
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 5mm;
+        }
+
+        @media print {
+            /* Hide entire interactive app; display ONLY printPagesContainer */
+            body > *:not(#printPagesContainer) {
+                display: none !important;
+            }
+
+            body, html {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                height: auto !important;
+                overflow: visible !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            #printPagesContainer {
+                display: block !important;
+                width: 287mm !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+
+            .print-page {
+                width: 287mm !important;
+                height: 200mm !important;
+                max-height: 200mm !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                box-sizing: border-box !important;
+                padding: 4mm 5mm 3mm 5mm !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                position: relative !important;
+                overflow: hidden !important;
+            }
+
+            .print-page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            .print-page-inner {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .print-report-title {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding-bottom: 2mm;
+                margin-bottom: 2mm;
+                border-bottom: 1.5px solid #1e40af;
+                font-size: 11pt;
+                font-weight: 800;
+                color: #0f172a;
+            }
+
+            .print-content {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                gap: 2.5mm;
+                min-height: 0;
+            }
+
+            /* Compact typography & table density for single/multi page fits */
+            .print-page table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                font-size: 7.4px !important;
+                line-height: 1.15 !important;
+            }
+
+            .print-page th,
+            .print-page td {
+                padding: 2.2px 3px !important;
+                font-size: 7.4px !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                border-color: #cbd5e1 !important;
+            }
+
+            /* Preserved section banner styling in print */
+            .print-page .bg-\[\#1e40af\] {
+                background-color: #1e40af !important;
+                color: #ffffff !important;
+                padding: 2.5px 6px !important;
+                font-size: 8.5px !important;
+            }
+            .print-page .bg-\[\#0e7490\] {
+                background-color: #0e7490 !important;
+                color: #ffffff !important;
+                padding: 2.5px 6px !important;
+                font-size: 8.5px !important;
+            }
+            .print-page .bg-\[\#b45309\] {
+                background-color: #b45309 !important;
+                color: #ffffff !important;
+                padding: 2.5px 6px !important;
+                font-size: 8.5px !important;
+            }
+
+            /* ERP Footer: 3-column CSS Grid specification */
+            .print-footer {
+                display: grid !important;
+                grid-template-columns: 1.35fr 1.5fr 0.65fr !important;
+                align-items: center !important;
+                border-top: 1px solid #cbd5e1 !important;
+                padding-top: 1.5mm !important;
+                margin-top: 1.5mm !important;
+                font-size: 8px !important;
+                color: #334155 !important;
+                line-height: 1.25 !important;
+                shrink: 0 !important;
+            }
+
+            .print-footer-left {
+                text-align: left !important;
+                font-size: 7.5px !important;
+                color: #475569 !important;
+            }
+
+            .print-footer-center {
+                text-align: center !important;
+                font-weight: 600 !important;
+                font-size: 8px !important;
+                color: #1e293b !important;
+            }
+
+            .print-footer-right,
+            .print-page-number {
+                text-align: right !important;
+                font-weight: 700 !important;
+                font-size: 8px !important;
+                color: #0f172a !important;
+            }
+        }
     </style>
 </head>
 
@@ -1855,8 +2027,8 @@
                     <p class="text-sm text-gray-500 mt-1">Preparing specification and planning milestones</p>
                 </div>
 
-                <!-- Action Toolbar with Filled Color Back Button -->
-                <div class="no-print bg-white dark:bg-[#151921] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 py-3 shrink-0 shadow-sm flex-wrap gap-2">
+                <!-- Action Toolbar with Zoom and Fit Controls -->
+                <div id="reportActionToolbar" class="no-print bg-white dark:bg-[#151921] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 py-2.5 shrink-0 shadow-sm flex-wrap gap-2">
                     <div class="flex items-center gap-3">
                         <button onclick="closePPIDetailedView()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 active:scale-95">
                             <i class="fas fa-arrow-left"></i> Back
@@ -1867,22 +2039,45 @@
                         </h3>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <button onclick="exportPPIToExcel()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                    <div id="reportActionGroup" class="flex items-center gap-2">
+                        <button onclick="exportPPIToExcel()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                             <i class="fas fa-file-excel"></i> Excel Download
                         </button>
-                        <button onclick="window.print()" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                        <button id="fitScreenBtn" onclick="fitReportToScreen()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="Fit to Screen Width">
+                            <i class="fas fa-expand"></i> Fit to Screen
+                        </button>
+                        <div id="reportZoomControls" class="flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-0.5 text-xs">
+                            <button onclick="changeReportZoom(-0.1)" class="w-7 h-7 flex items-center justify-center rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold transition" title="Zoom Out">
+                                <i class="fas fa-minus text-[10px]"></i>
+                            </button>
+                            <span id="reportZoomLabel" class="px-2 text-xs font-bold text-slate-700 dark:text-slate-200 min-w-[46px] text-center select-none">100%</span>
+                            <button onclick="changeReportZoom(0.1)" class="w-7 h-7 flex items-center justify-center rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold transition" title="Zoom In">
+                                <i class="fas fa-plus text-[10px]"></i>
+                            </button>
+                            <button onclick="resetReportZoom()" class="px-2 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition border-l border-slate-200 dark:border-slate-700" title="Reset Zoom">
+                                Reset
+                            </button>
+                        </div>
+                        <button onclick="printReport()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="Print ERP Report">
                             <i class="fas fa-print"></i> Print
                         </button>
                     </div>
                 </div>
 
-                <!-- Report Body -->
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-4 md:p-6 bg-slate-100 dark:bg-[#0f1117] min-h-0 w-full pb-24">
+                <!-- Report Body Container (reportViewport) -->
+                <div id="reportViewport" class="flex-1 overflow-auto custom-scrollbar p-2 sm:p-4 md:p-6 bg-slate-100 dark:bg-[#0f1117] min-h-0 w-full pb-24">
                     <div id="reportSheet" class="max-w-6xl mx-auto bg-white dark:bg-[#181c25] rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 sm:p-6 space-y-6">
 
+                        <!-- Report Screen Title -->
+                        <div class="report-screen-title pb-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-file-contract text-blue-600 text-base"></i>
+                                <h2 class="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">Detailed Planning & Production Info</h2>
+                            </div>
+                        </div>
+
                         <!-- ================= 1. BOOKING SPECIFICATION (Deep Indigo Blue Header) ================= -->
-                        <section class="w-full">
+                        <section id="bookingSpecSection" class="w-full">
                             <div class="bg-[#1e40af] text-white px-4 py-2.5 rounded-t-lg font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between shadow-sm">
                                 <span><i class="fas fa-clipboard-check mr-2"></i> Booking Specification</span>
                                 <span class="text-[11px] font-semibold bg-white/20 px-2.5 py-0.5 rounded">General & Technical Specs</span>
@@ -1959,7 +2154,7 @@
                         </section>
 
                         <!-- ================= 2. BOOKING PLANNING (Cyan/Slate Teal Header) ================= -->
-                        <section class="w-full">
+                        <section id="bookingPlanSection" class="w-full">
                             <div class="bg-[#0e7490] text-white px-4 py-2.5 rounded-t-lg font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between shadow-sm">
                                 <span><i class="fas fa-calendar-alt mr-2"></i> Booking Planning (Milestones & Plan vs Actual)</span>
                                 <span class="text-[11px] font-semibold bg-white/20 px-2.5 py-0.5 rounded">Timeline Review</span>
@@ -2039,7 +2234,7 @@
                         </section>
 
                         <!-- ================= 3. DETAILS BOOKING SUMMARY (Warm Amber Header) ================= -->
-                        <section class="w-full">
+                        <section id="bookingSummarySection" class="w-full">
                             <div class="bg-[#b45309] text-white px-4 py-2.5 rounded-t-lg font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between shadow-sm">
                                 <span><i class="fas fa-layer-group mr-2"></i> Details Booking Summary (Color-Wise)</span>
                                 <span id="ppiBadgeColorCount" class="text-[11px] font-semibold bg-white/20 px-2.5 py-0.5 rounded">0 Colors</span>
@@ -2260,6 +2455,9 @@
     <script defer src="js/plan-filter.js"></script>
     <script defer src="js/plan-vs-actual-tracking-filter.js"></script>
     <script defer src="js/planning-prod-info.js"></script>
+
+    <!-- Multi-page ERP A4 Landscape Print Engine Container -->
+    <div id="printPagesContainer" aria-hidden="true"></div>
 </body>
 
 </html>

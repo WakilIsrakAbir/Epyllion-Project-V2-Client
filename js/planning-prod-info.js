@@ -264,6 +264,7 @@ async function openPPIDetailedView(encodedOrderNo) {
 
   document.getElementById("ppiListView").classList.add("hidden");
   document.getElementById("ppiDetailedView").classList.remove("hidden");
+  requestAnimationFrame(() => fitReportToScreen());
 
   try {
     const base = getPPIApiBase();
@@ -276,6 +277,7 @@ async function openPPIDetailedView(encodedOrderNo) {
     };
 
     renderPPIDetailedReport(ppiCurrentData.order, ppiCurrentData.planData);
+    requestAnimationFrame(() => fitReportToScreen());
   } catch (err) {
     console.error("Error loading order detail:", err);
     if (typeof showToast === "function") showToast("Error loading order details.");
@@ -889,3 +891,351 @@ function exportPPIToExcel() {
   XLSX.writeFile(wb, `Planning_Production_Info_${o.orderNo}.xlsx`);
   if (typeof showToast === "function") showToast("Excel downloaded successfully!");
 }
+
+// ==========================================
+// ZOOM & SCREEN FIT SYSTEM
+// ==========================================
+let reportZoom = 1;
+let reportAutoFit = false;
+
+function resetToolbarFitPosition() {
+  const toolbar = document.getElementById("reportActionToolbar");
+  if (toolbar) {
+    toolbar.style.paddingRight = "";
+  }
+}
+
+function alignFitToolbarToReport() {
+  const toolbar = document.getElementById("reportActionToolbar");
+  const viewport = document.getElementById("reportViewport");
+  if (!toolbar || !viewport) return;
+
+  const scrollbarWidth = viewport.offsetWidth - viewport.clientWidth;
+  if (scrollbarWidth > 0) {
+    toolbar.style.paddingRight = `${scrollbarWidth + 16}px`;
+  } else {
+    toolbar.style.paddingRight = "16px";
+  }
+}
+
+function setReportZoom(value, fitted = false) {
+  const clamped = Math.min(1.5, Math.max(0.3, Math.round(value * 100) / 100));
+  reportZoom = clamped;
+  reportAutoFit = fitted;
+
+  const sheet = document.getElementById("reportSheet");
+  const zoomLabel = document.getElementById("reportZoomLabel");
+  const fitBtn = document.getElementById("fitScreenBtn");
+
+  if (sheet) {
+    sheet.style.transformOrigin = "top left";
+    sheet.style.transform = `scale(${reportZoom})`;
+
+    const unscaledWidth = sheet.offsetWidth || 1152;
+    if (reportZoom < 1) {
+      sheet.style.marginBottom = `-${((1 - reportZoom) * (sheet.offsetHeight || 600))}px`;
+      sheet.style.marginRight = `-${((1 - reportZoom) * unscaledWidth)}px`;
+    } else {
+      sheet.style.marginBottom = "0px";
+      sheet.style.marginRight = "0px";
+    }
+  }
+
+  if (zoomLabel) {
+    zoomLabel.innerText = `${Math.round(reportZoom * 100)}%`;
+  }
+
+  if (fitBtn) {
+    if (fitted) {
+      fitBtn.classList.remove("bg-blue-600", "hover:bg-blue-700");
+      fitBtn.classList.add("bg-indigo-600", "hover:bg-indigo-700", "ring-2", "ring-indigo-300");
+    } else {
+      fitBtn.classList.remove("bg-indigo-600", "hover:bg-indigo-700", "ring-2", "ring-indigo-300");
+      fitBtn.classList.add("bg-blue-600", "hover:bg-blue-700");
+    }
+  }
+
+  alignFitToolbarToReport();
+}
+
+function fitReportToScreen() {
+  const viewport = document.getElementById("reportViewport");
+  const sheet = document.getElementById("reportSheet");
+  if (!viewport || !sheet) return;
+
+  const availableWidth = viewport.clientWidth - 32;
+  const originalWidth = sheet.scrollWidth || sheet.offsetWidth || 1152;
+
+  if (availableWidth > 0 && originalWidth > 0) {
+    const targetScale = Math.min(1.0, availableWidth / originalWidth);
+    setReportZoom(targetScale, true);
+  }
+}
+
+function changeReportZoom(delta) {
+  setReportZoom(reportZoom + delta, false);
+}
+
+function resetReportZoom() {
+  setReportZoom(1.0, false);
+}
+
+window.addEventListener("resize", () => {
+  if (reportAutoFit) {
+    const detailedView = document.getElementById("ppiDetailedView");
+    if (detailedView && !detailedView.classList.contains("hidden")) {
+      requestAnimationFrame(fitReportToScreen);
+    }
+  }
+});
+
+// ==========================================
+// DYNAMIC A4 LANDSCAPE PRINT ENGINE
+// ==========================================
+
+function getPrintUsername() {
+  const displayEl = document.getElementById("displayUsername");
+  if (displayEl) {
+    const txt = displayEl.innerText.trim();
+    if (txt && txt !== "Loading..." && txt !== "-") {
+      return txt;
+    }
+  }
+  const u = localStorage.getItem("username");
+  const r = localStorage.getItem("role");
+  if (u && r) return `${u} (${r})`;
+  if (u) return u;
+  return "System User";
+}
+
+function formatPrintDateTime(d = new Date()) {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const seconds = String(d.getSeconds()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const strHours = String(hours).padStart(2, "0");
+
+  return `${day}-${month}-${year} ${strHours}:${minutes}:${seconds} ${ampm}`;
+}
+
+function stripPrintCloneIds(root) {
+  if (!root) return;
+  if (root.removeAttribute) {
+    root.removeAttribute("id");
+  }
+  const elementsWithId = root.querySelectorAll ? root.querySelectorAll("[id]") : [];
+  elementsWithId.forEach(el => el.removeAttribute("id"));
+}
+
+function createPrintPage(printedAt, username, bookingTitle) {
+  const page = document.createElement("div");
+  page.className = "print-page";
+
+  const inner = document.createElement("div");
+  inner.className = "print-page-inner";
+
+  const titleDiv = document.createElement("div");
+  titleDiv.className = "print-report-title";
+  titleDiv.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;">
+      <i class="fas fa-file-contract text-blue-600"></i>
+      <span style="font-size:11pt;font-weight:800;color:#0f172a;">Detailed Planning & Production Info</span>
+    </div>
+    <div style="font-size:9pt;font-weight:700;color:#1e40af;font-family:monospace;">${bookingTitle || ""}</div>
+  `;
+  inner.appendChild(titleDiv);
+
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "print-content";
+  inner.appendChild(contentDiv);
+
+  page.appendChild(inner);
+
+  const footerDiv = document.createElement("div");
+  footerDiv.className = "print-footer";
+  footerDiv.innerHTML = `
+    <div class="print-footer-left">
+      <div>Printed Date &amp; Time: ${printedAt}</div>
+      <div>Print by: ${username}</div>
+    </div>
+    <div class="print-footer-center">This is the PMC internal ERP System Generated Report</div>
+    <div class="print-footer-right print-page-number"></div>
+  `;
+  page.appendChild(footerDiv);
+
+  return page;
+}
+
+function createSummaryPrintShell(theadHtml, colorCountText, isContinuation = false) {
+  const section = document.createElement("section");
+  section.className = "w-full";
+
+  const header = document.createElement("div");
+  header.className = "bg-[#b45309] text-white px-3 py-1.5 rounded-t font-black text-xs uppercase flex items-center justify-between";
+  header.innerHTML = `
+    <span><i class="fas fa-layer-group mr-1.5"></i> Details Booking Summary (Color-Wise)${isContinuation ? ' - Continued' : ''}</span>
+    <span class="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded">${colorCountText || ''}</span>
+  `;
+  section.appendChild(header);
+
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "overflow-hidden border border-t-0 border-slate-300 rounded-b";
+
+  const table = document.createElement("table");
+  table.className = "w-full text-xs border-collapse";
+
+  const thead = document.createElement("thead");
+  thead.className = "bg-amber-100 text-amber-950 font-bold border-b border-slate-300";
+  thead.innerHTML = theadHtml || "";
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  tbody.className = "divide-y divide-slate-200";
+  table.appendChild(tbody);
+
+  tableWrap.appendChild(table);
+  section.appendChild(tableWrap);
+
+  return { section, tbody };
+}
+
+function printContentOverflows(page) {
+  return page.scrollHeight > page.clientHeight + 2;
+}
+
+function buildPrintPages() {
+  const container = document.getElementById("printPagesContainer");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const specSec = document.getElementById("bookingSpecSection");
+  const planSec = document.getElementById("bookingPlanSection");
+  const summaryThead = document.getElementById("ppiSummaryThead");
+  const summaryTbody = document.getElementById("ppiSummaryTbody");
+  const badgeBookingNo = document.getElementById("ppiBadgeBookingNo");
+  const badgeColorCount = document.getElementById("ppiBadgeColorCount");
+
+  const bookingTitle = badgeBookingNo ? badgeBookingNo.innerText.trim() : "";
+  const colorCountText = badgeColorCount ? badgeColorCount.innerText.trim() : "";
+  const printedAt = formatPrintDateTime();
+  const username = getPrintUsername();
+
+  // Temporarily position container for off-screen measurement
+  container.style.position = "fixed";
+  container.style.left = "-20000px";
+  container.style.top = "0";
+  container.style.width = "287mm";
+  container.style.display = "block";
+  container.style.visibility = "hidden";
+  container.style.zIndex = "-9999";
+
+  // Create Page 1
+  let currentPage = createPrintPage(printedAt, username, bookingTitle);
+  container.appendChild(currentPage);
+  let currentContent = currentPage.querySelector(".print-content");
+
+  // Append Section 1: Booking Specification
+  if (specSec) {
+    const cloneSpec = specSec.cloneNode(true);
+    stripPrintCloneIds(cloneSpec);
+    currentContent.appendChild(cloneSpec);
+  }
+
+  // Append Section 2: Booking Planning
+  if (planSec) {
+    const clonePlan = planSec.cloneNode(true);
+    stripPrintCloneIds(clonePlan);
+    currentContent.appendChild(clonePlan);
+  }
+
+  // Summary Table: header and rows
+  const theadHtml = summaryThead ? summaryThead.innerHTML : "";
+  const allRows = summaryTbody ? Array.from(summaryTbody.querySelectorAll("tr")) : [];
+
+  if (allRows.length > 0) {
+    let summaryShell = createSummaryPrintShell(theadHtml, colorCountText, false);
+    currentContent.appendChild(summaryShell.section);
+
+    let rowsInCurrentShell = 0;
+
+    for (let i = 0; i < allRows.length; i++) {
+      const origRow = allRows[i];
+      const cloneRow = origRow.cloneNode(true);
+      stripPrintCloneIds(cloneRow);
+      summaryShell.tbody.appendChild(cloneRow);
+      rowsInCurrentShell++;
+
+      if (printContentOverflows(currentPage)) {
+        if (rowsInCurrentShell > 1) {
+          summaryShell.tbody.removeChild(cloneRow);
+          i--;
+        } else {
+          currentContent.removeChild(summaryShell.section);
+          i--;
+        }
+
+        currentPage = createPrintPage(printedAt, username, bookingTitle);
+        container.appendChild(currentPage);
+        currentContent = currentPage.querySelector(".print-content");
+
+        summaryShell = createSummaryPrintShell(theadHtml, colorCountText, true);
+        currentContent.appendChild(summaryShell.section);
+        rowsInCurrentShell = 0;
+      }
+    }
+  }
+
+  // Stamp total page counts across all compiled pages
+  const pages = container.querySelectorAll(".print-page");
+  const totalPages = pages.length || 1;
+  pages.forEach((page, idx) => {
+    const pageNumEl = page.querySelector(".print-page-number");
+    if (pageNumEl) {
+      const curStr = String(idx + 1).padStart(2, "0");
+      const totStr = String(totalPages).padStart(2, "0");
+      pageNumEl.innerText = `Page ${curStr} out of ${totStr}`;
+    }
+  });
+
+  // Restore container inline styles
+  container.style.position = "";
+  container.style.left = "";
+  container.style.top = "";
+  container.style.width = "";
+  container.style.display = "";
+  container.style.visibility = "";
+  container.style.zIndex = "";
+}
+
+function clearPrintPages() {
+  const container = document.getElementById("printPagesContainer");
+  if (container) {
+    container.innerHTML = "";
+  }
+}
+
+function printReport() {
+  buildPrintPages();
+  window.print();
+}
+
+window.addEventListener("beforeprint", () => {
+  const detailedView = document.getElementById("ppiDetailedView");
+  if (detailedView && !detailedView.classList.contains("hidden")) {
+    const container = document.getElementById("printPagesContainer");
+    if (!container || container.children.length === 0) {
+      buildPrintPages();
+    }
+  }
+});
+
+window.addEventListener("afterprint", () => {
+  clearPrintPages();
+});
