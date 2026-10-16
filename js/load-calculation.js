@@ -150,14 +150,22 @@ function resolveItemPlanDates(dept, savedItem, itemData, order) {
 
     if (dept === 'yd') {
         // Priority 1: Tentative & Confirm YD Date from Tentative & Confirm list
-        if (savedItem && (savedItem.planType === 'Confirm' || savedItem.planType === 'Tentative') && savedItem.startDate && savedItem.endDate) {
-            planStart = savedItem.startDate;
-            planEnd = savedItem.endDate;
-            planType = savedItem.planType;
+        const sType = savedItem?.planType || itemData?.planType;
+        const sStart = savedItem?.startDate || itemData?.startDate;
+        const sEnd = savedItem?.endDate || itemData?.endDate;
+
+        if ((sType === 'Confirm' || sType === 'Tentative') && sStart && sEnd) {
+            planStart = sStart;
+            planEnd = sEnd;
+            planType = sType;
         } else {
-            // Priority 2: T&A YD Plan (YD T&A Start and YD T&A End) from Order management (YD Plan) menu
-            let ydTnAStart = getColData(itemData, ['YD T&A Start', 'T&A Start', 'YD T&A Start Date', 'YD TNA Start', 'TNA Start', 'Start Date']) || '';
-            let ydTnAEnd = getColData(itemData, ['YD T&A End', 'T&A End', 'YD T&A End Date', 'YD TNA End', 'TNA End', 'End Date']) || '';
+            // Priority 2: T&A YD Plan (YD T&A Start and YD T&A End) from Order management (YD Plan) menu (for Pending List)
+            let ydTnAStart = getColData(itemData, ['YD T&A Start', 'T&A Start', 'YD T&A Start Date', 'YD TNA Start', 'TNA Start', 'Start Date'])
+                || (savedItem?.itemData ? getColData(savedItem.itemData, ['YD T&A Start', 'T&A Start', 'YD T&A Start Date', 'YD TNA Start', 'TNA Start', 'Start Date']) : '')
+                || order.ydStart || '';
+            let ydTnAEnd = getColData(itemData, ['YD T&A End', 'T&A End', 'YD T&A End Date', 'YD TNA End', 'TNA End', 'End Date'])
+                || (savedItem?.itemData ? getColData(savedItem.itemData, ['YD T&A End', 'T&A End', 'YD T&A End Date', 'YD TNA End', 'TNA End', 'End Date']) : '')
+                || order.ydEnd || '';
             if (typeof ydTnAStart === 'number') ydTnAStart = formatExcelDate(ydTnAStart);
             if (typeof ydTnAEnd === 'number') ydTnAEnd = formatExcelDate(ydTnAEnd);
 
@@ -298,7 +306,7 @@ function buildLoadRowFromItem(order, itemData, dept, planDates) {
     row.DYED = getColData(itemData, ['DYED', 'Dyed']);
     row['YD BALANCE'] = getColData(itemData, ['YD BALANCE', 'YD Balance']);
     row['YD Delivered'] = getColData(itemData, ['YD Delivered', 'Delivered']);
-    row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Balance_1', 'YD Delivery Balance']);
+    row['YD DELIVERY BALANCE'] = getColData(itemData, ['YD DELIVERY BALANCE', 'YD Delivery Balance', 'YD Balance_1', 'YD Balance 2', 'YD Balance', 'YD BALANCE']);
 
     // Fallbacks for pending balance quantities if not populated directly
     if (row.DeliBal === '' || row.DeliBal === null || row.DeliBal === undefined) {
@@ -324,6 +332,7 @@ function buildLoadRowFromItem(order, itemData, dept, planDates) {
         const del = loadNumber(row['YD Delivered']);
         if (req > 0 && del > 0) row['YD DELIVERY BALANCE'] = Math.max(0, req - del);
         else if (req > 0) row['YD DELIVERY BALANCE'] = req;
+        else if (row['YD BALANCE'] !== '' && row['YD BALANCE'] !== null && row['YD BALANCE'] !== undefined) row['YD DELIVERY BALANCE'] = row['YD BALANCE'];
     }
 
     row.planStart = planDates.planStart;
@@ -356,26 +365,48 @@ function processOrdersForLoadDepartment(orders, planMap, dept) {
                 const myColor = String(itemData.Color || itemData.Colour || itemData['Fab Color'] || '').trim().toLowerCase();
                 const myConst = String(itemData.FabricConstruction || itemData.Construction || itemData.Fabric || '').trim().toLowerCase();
                 const myGsm = String(itemData.GSM || itemData['G.S.M'] || '').trim().toLowerCase();
+                const myType = String(getColData(itemData, ['Booking Type', 'Type', 'YD Type']) || '').trim();
+                const myYdb = String(getColData(itemData, ['YDB', 'YD B']) || '').trim();
+                const myProcess = String(getColData(itemData, ['Process Name', 'ProcessName', 'Process']) || '').trim();
 
                 const normItem = {
                     OrderNo: myOrderNo,
                     Color: myColor,
                     FabricConstruction: myConst,
-                    GSM: myGsm
+                    GSM: myGsm,
+                    'Booking Type': myType,
+                    YDB: myYdb,
+                    ProcessName: myProcess
                 };
                 const exId = typeof generateItemId === 'function' ? generateItemId(normItem, actualDept) : `item_${idx}`;
 
-                savedItem = savedItems.find(s => s.itemId === exId)
-                    || savedItems.find(s => {
-                        const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
-                        const sConst = String(s.itemData?.FabricConstruction || s.itemData?.Construction || '').trim().toLowerCase();
-                        const sGsm = String(s.itemData?.GSM || '').trim().toLowerCase();
-                        return sColor && sColor === myColor && (!myConst || sConst === myConst) && (!myGsm || sGsm === myGsm);
-                    })
-                    || savedItems.find(s => {
-                        const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
-                        return sColor && sColor === myColor;
-                    });
+                if (actualDept === 'yd') {
+                    const normType = myType.toLowerCase();
+                    const normYdb = myYdb.toLowerCase();
+                    savedItem = savedItems.find(s => s.itemId === exId)
+                        || savedItems.find(s => {
+                            const sType = String(s.itemData?.['Booking Type'] || s.itemData?.Type || s.itemData?.['YD Type'] || '').trim().toLowerCase();
+                            const sYdb = String(s.itemData?.YDB || s.itemData?.['YD B'] || '').trim().toLowerCase();
+                            return normType && normYdb && sType === normType && sYdb === normYdb;
+                        })
+                        || savedItems.find(s => {
+                            const sYdb = String(s.itemData?.YDB || s.itemData?.['YD B'] || '').trim().toLowerCase();
+                            return normYdb && sYdb === normYdb;
+                        })
+                        || (savedItems.length === 1 ? savedItems[0] : null);
+                } else {
+                    savedItem = savedItems.find(s => s.itemId === exId)
+                        || savedItems.find(s => {
+                            const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
+                            const sConst = String(s.itemData?.FabricConstruction || s.itemData?.Construction || '').trim().toLowerCase();
+                            const sGsm = String(s.itemData?.GSM || '').trim().toLowerCase();
+                            return sColor && sColor === myColor && (!myConst || sConst === myConst) && (!myGsm || sGsm === myGsm);
+                        })
+                        || savedItems.find(s => {
+                            const sColor = String(s.itemData?.Color || s.itemData?.Colour || '').trim().toLowerCase();
+                            return sColor && sColor === myColor;
+                        });
+                }
 
                 // ONLY merge user planning inputs from savedItem — NEVER overwrite fresh Excel production/tracking data!
                 if (savedItem && savedItem.itemData) {
@@ -520,6 +551,8 @@ function parseLoadDate(value) {
     }
     const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    const dmyMatch = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmyMatch) return new Date(Number(dmyMatch[3]), Number(dmyMatch[2]) - 1, Number(dmyMatch[1]));
     const parsed = new Date(text);
     if (Number.isNaN(parsed.getTime())) return null;
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
