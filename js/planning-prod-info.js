@@ -94,6 +94,132 @@ function ppiGetString(item, fieldNames) {
 }
 
 // ==========================================
+// Item ID & Department Plan Status Resolvers
+// ==========================================
+function getPPIItemId(item, dept, orderNo) {
+  if (!item) return "";
+  if (item.itemId) return String(item.itemId).toLowerCase().replace(/\s+/g, "");
+
+  const bNo = ppiGetString(item, ["BookingNo", "OrderNo", "EWO", "Booking", "Order No", "Booking No"]) || orderNo || "N/A";
+  const color = ppiGetString(item, ["Color", "Colour", "Fab Color", "color", "colour"]) || "N/A";
+
+  if (dept === "knitting" || dept === "delivery") {
+    const fabConst = ppiGetString(item, ["FabricConstruction", "Fabric Construction", "Construction", "Fab Const", "Fabric"]) || "N/A";
+    const gsm = ppiGetString(item, ["GSM", "G.S.M", "Body GSM", "gsm"]) || "N/A";
+    return `${bNo}_${color}_${fabConst}_${gsm}`.toLowerCase().replace(/\s+/g, "");
+  } else if (dept === "yd") {
+    const type = ppiGetString(item, ["Booking Type", "Type", "YD Type", "BookingType"]) || "N/A";
+    const ydb = ppiGetString(item, ["YDB", "YD B"]) || "N/A";
+    return `${bNo}_${type}_${ydb}`.toLowerCase().replace(/\s+/g, "");
+  } else {
+    // dyeing, finishing
+    const procName = ppiGetString(item, ["Process Name", "ProcessName", "Process", "processName"]) || "N/A";
+    return `${bNo}_${color}_${procName}`.toLowerCase().replace(/\s+/g, "");
+  }
+}
+
+function resolveDepartmentPlanInfo(currentItems, savedPlanItems, dept, defaultStart, defaultEnd, orderNo) {
+  const items = currentItems || [];
+  const savedList = savedPlanItems || [];
+
+  if (items.length === 0) {
+    return {
+      planType: (defaultStart && defaultStart !== "—" && defaultStart !== "-") ? "T&A" : "Pending",
+      startDate: defaultStart || "—",
+      endDate: defaultEnd || "—"
+    };
+  }
+
+  // Map saved plan items by itemId
+  const planMap = new Map();
+  savedList.forEach(p => {
+    const id = p.itemId ? String(p.itemId).toLowerCase().replace(/\s+/g, "") : getPPIItemId(p.itemData || p, dept, orderNo);
+    if (id) planMap.set(id, p);
+  });
+
+  let hasPendingOrMissing = false;
+  let hasTentative = false;
+  let confirmCount = 0;
+  let matchCount = 0;
+  const validStarts = [];
+  const validEnds = [];
+
+  items.forEach((item, idx) => {
+    const itemId = getPPIItemId(item, dept, orderNo) || `item_${idx}`;
+    const saved = planMap.get(itemId);
+
+    if (saved) {
+      matchCount++;
+    }
+
+    const isDelivery = (dept === "delivery");
+    const pType = isDelivery
+      ? (saved?.floorPlanType || saved?.planType || "")
+      : (saved?.planType || "");
+
+    const pStart = isDelivery
+      ? (saved?.floorStartDate || saved?.["Delivery Plan Start (Floor)"] || saved?.startDate || saved?.["Plan Start Date"] || saved?.["Start Date"] || "")
+      : (saved?.startDate || saved?.["Plan Start Date"] || saved?.["Plan Start"] || saved?.["Start Date"] || saved?.["Knit Start Date"] || saved?.["Dyeing Start Date"] || "");
+
+    const pEnd = isDelivery
+      ? (saved?.floorEndDate || saved?.["Delivery Plan End (Floor)"] || saved?.endDate || saved?.["Plan End Date"] || saved?.["End Date"] || "")
+      : (saved?.endDate || saved?.["Plan End Date"] || saved?.["Plan End"] || saved?.["End Date"] || saved?.["Knit End Date"] || saved?.["Dyeing End Date"] || "");
+
+    const cleanType = String(pType).trim();
+
+    if (!cleanType || cleanType === "Select" || cleanType === "Pending" || cleanType === "—" || cleanType === "-") {
+      hasPendingOrMissing = true;
+    } else if (cleanType === "Tentative") {
+      hasTentative = true;
+      if (pStart && pStart !== "—" && pStart !== "-") validStarts.push(pStart);
+      if (pEnd && pEnd !== "—" && pEnd !== "-") validEnds.push(pEnd);
+    } else if (cleanType === "Confirm") {
+      confirmCount++;
+      if (pStart && pStart !== "—" && pStart !== "-") validStarts.push(pStart);
+      if (pEnd && pEnd !== "—" && pEnd !== "-") validEnds.push(pEnd);
+    } else {
+      hasPendingOrMissing = true;
+    }
+  });
+
+  let overallType = "Pending";
+  if (matchCount === 0) {
+    if (savedList.length > 0) {
+      overallType = "Pending";
+    } else {
+      overallType = (defaultStart && defaultStart !== "—" && defaultStart !== "-") ? "T&A" : "Pending";
+    }
+  } else if (hasPendingOrMissing) {
+    overallType = "Pending";
+  } else if (hasTentative) {
+    overallType = "Tentative";
+  } else if (confirmCount === items.length && items.length > 0) {
+    overallType = "Confirm";
+  } else {
+    overallType = "Pending";
+  }
+
+  validStarts.sort();
+  validEnds.sort();
+
+  let finalStart = defaultStart || "—";
+  let finalEnd = defaultEnd || "—";
+
+  if (validStarts.length > 0) {
+    finalStart = validStarts[0];
+  }
+  if (validEnds.length > 0) {
+    finalEnd = validEnds[validEnds.length - 1];
+  }
+
+  return {
+    planType: overallType,
+    startDate: finalStart,
+    endDate: finalEnd
+  };
+}
+
+// ==========================================
 // Show Planning & Production Info Page
 // ==========================================
 async function showPlanningProdInfo() {
@@ -332,44 +458,22 @@ function renderPPIDetailedReport(order, planData) {
   fill("ppi_val_style", o.style || o["Style"] || "—");
   fill("ppi_val_finalConf", o.style || o["Style"] || "—");
 
-  // 2. PLANNING SECTION
-  let planKnitStart = o.knitStart, planKnitEnd = o.knitEnd;
-  let knitPlanType = "T&A";
-  if (pd.knitting && pd.knitting.length > 0) {
-    const starts = pd.knitting.map(i => i.startDate || i["Plan Start Date"] || i["Plan Start"] || i["Start Date"] || i["Knit Start Date"]).filter(Boolean).sort();
-    const ends = pd.knitting.map(i => i.endDate || i["Plan End Date"] || i["Plan End"] || i["End Date"] || i["Knit End Date"]).filter(Boolean).sort();
-    if (starts.length) planKnitStart = starts[0];
-    if (ends.length) planKnitEnd = ends[ends.length - 1];
-    const savedType = pd.knitting.map(i => i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') knitPlanType = savedType;
-  }
+  // 2. PLANNING SECTION: Evaluate plan status and dates strictly from current active items
+  const knitPlanInfo = resolveDepartmentPlanInfo(kItems, pd.knitting, "knitting", o.knitStart, o.knitEnd, o.orderNo);
+  const dyePlanInfo = resolveDepartmentPlanInfo(dItems, pd.dyeing, "dyeing", o.dyeStart, o.dyeEnd, o.orderNo);
+  const deliPlanInfo = resolveDepartmentPlanInfo(delItems, pd.delivery, "delivery", o.deliStart, o.deliEnd, o.orderNo);
 
-  let planDyeStart = o.dyeStart, planDyeEnd = o.dyeEnd;
-  let dyePlanType = "T&A";
-  if (pd.dyeing && pd.dyeing.length > 0) {
-    const starts = pd.dyeing.map(i => i.startDate || i["Plan Start Date"] || i["Plan Start"] || i["Start Date"] || i["Dyeing Start Date"]).filter(Boolean).sort();
-    const ends = pd.dyeing.map(i => i.endDate || i["Plan End Date"] || i["Plan End"] || i["End Date"] || i["Dyeing End Date"]).filter(Boolean).sort();
-    if (starts.length) planDyeStart = starts[0];
-    if (ends.length) planDyeEnd = ends[ends.length - 1];
-    const savedType = pd.dyeing.map(i => i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') dyePlanType = savedType;
-  }
+  const planKnitStart = knitPlanInfo.startDate;
+  const planKnitEnd = knitPlanInfo.endDate;
+  const knitPlanType = knitPlanInfo.planType;
 
-  let planDeliStart = o.deliStart, planDeliEnd = o.deliEnd;
-  let deliPlanType = "T&A";
-  if (pd.delivery && pd.delivery.length > 0) {
-    const floorItems = pd.delivery.filter(i => {
-      const type = i.floorPlanType || i["Delivery Plan Type (Floor)"] || "";
-      return type === 'Confirm' || type === 'Tentative';
-    });
-    const sourceItems = floorItems.length ? floorItems : pd.delivery;
-    const starts = sourceItems.map(i => i.floorStartDate || i["Delivery Plan Start (Floor)"] || i.startDate || i["Delivery Plan Start"]).filter(Boolean).sort();
-    const ends = sourceItems.map(i => i.floorEndDate || i["Delivery Plan End (Floor)"] || i.endDate || i["Delivery Plan End"]).filter(Boolean).sort();
-    if (starts.length) planDeliStart = starts[0];
-    if (ends.length) planDeliEnd = ends[ends.length - 1];
-    const savedType = sourceItems.map(i => i.floorPlanType || i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') deliPlanType = savedType;
-  }
+  const planDyeStart = dyePlanInfo.startDate;
+  const planDyeEnd = dyePlanInfo.endDate;
+  const dyePlanType = dyePlanInfo.planType;
+
+  const planDeliStart = deliPlanInfo.startDate;
+  const planDeliEnd = deliPlanInfo.endDate;
+  const deliPlanType = deliPlanInfo.planType;
 
   fill("ppi_plan_yarn", formatPPIDate(o.yarnDate));
   fill("ppi_plan_knitStart", formatPPIDate(planKnitStart));
@@ -386,6 +490,7 @@ function renderPPIDetailedReport(order, planData) {
     let colorClass = "bg-slate-200/80 dark:bg-slate-700 text-slate-800 dark:text-slate-200";
     if (t === "Confirm") colorClass = "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800";
     else if (t === "Tentative") colorClass = "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800";
+    else if (t === "Pending") colorClass = "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 font-bold";
     else if (t === "T&A") colorClass = "bg-slate-200/90 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold";
     return `<span class="inline-block px-3 py-0.5 rounded ${colorClass} font-bold text-[11px] shadow-sm">${t}</span>`;
   };
@@ -400,10 +505,15 @@ function renderPPIDetailedReport(order, planData) {
   setBadgeHtml("ppi_pt_dye", dyePlanType);
   setBadgeHtml("ppi_pt_deli", deliPlanType);
 
-  // Actual Yarn Date: "here, Yarn Date Actual will be come from Order management 'Department Fabric Items' part inputted yarn Date."
+  // Actual Yarn Date: only consider active items from kItems
   let actYarnDate = "";
   if (pd.knitting && pd.knitting.length > 0) {
-    const found = pd.knitting.map(i => i.yarnDate).find(Boolean);
+    const activeIds = new Set(kItems.map((item, idx) => getPPIItemId(item, "knitting", o.orderNo) || `item_${idx}`));
+    const activeSaved = pd.knitting.filter(i => {
+      const id = i.itemId ? String(i.itemId).toLowerCase().replace(/\s+/g, "") : getPPIItemId(i.itemData || i, "knitting", o.orderNo);
+      return activeIds.has(id);
+    });
+    const found = activeSaved.map(i => i.yarnDate).find(Boolean);
     if (found) actYarnDate = found;
   }
   if (!actYarnDate && pd.knittingActual && pd.knittingActual.yarnDate) {
@@ -644,54 +754,31 @@ function exportPPIToExcel() {
   const bodyGsm = o.bodyGsm || o["Body GSM"] || ppiGetString(firstItem, ["GSM", "Gsm", "Body GSM"]);
   const programType = o.programType || o["Program type"] || ppiGetString(firstItem, ["Process Name", "ProcessName", "ProgramType", "Program Type"]) || "SOLID";
 
-  // Section 2 Milestones
-  let planKnitStart = o.knitStart, planKnitEnd = o.knitEnd;
-  let knitPlanType = "T&A";
-  if (pd.knitting && pd.knitting.length > 0) {
-    const starts = pd.knitting.map(i => i.startDate || i["Plan Start Date"] || i["Plan Start"] || i["Start Date"] || i["Knit Start Date"]).filter(Boolean).sort();
-    const ends = pd.knitting.map(i => i.endDate || i["Plan End Date"] || i["Plan End"] || i["End Date"] || i["Knit End Date"]).filter(Boolean).sort();
-    if (starts.length) {
-      planKnitStart = starts[0];
-      planKnitEnd = ends[ends.length - 1];
-    }
-    const savedType = pd.knitting.map(i => i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') knitPlanType = savedType;
-  }
+  // Section 2 Milestones: Evaluate plan status and dates strictly from current active items
+  const knitPlanInfo = resolveDepartmentPlanInfo(kItems, pd.knitting, "knitting", o.knitStart, o.knitEnd, o.orderNo);
+  const dyePlanInfo = resolveDepartmentPlanInfo(dItems, pd.dyeing, "dyeing", o.dyeStart, o.dyeEnd, o.orderNo);
+  const deliPlanInfo = resolveDepartmentPlanInfo(delItems, pd.delivery, "delivery", o.deliStart, o.deliEnd, o.orderNo);
 
-  let planDyeStart = o.dyeStart, planDyeEnd = o.dyeEnd;
-  let dyePlanType = "T&A";
-  if (pd.dyeing && pd.dyeing.length > 0) {
-    const starts = pd.dyeing.map(i => i.startDate || i["Plan Start Date"] || i["Plan Start"] || i["Start Date"] || i["Dyeing Start Date"]).filter(Boolean).sort();
-    const ends = pd.dyeing.map(i => i.endDate || i["Plan End Date"] || i["Plan End"] || i["End Date"] || i["Dyeing End Date"]).filter(Boolean).sort();
-    if (starts.length) {
-      planDyeStart = starts[0];
-      planDyeEnd = ends[ends.length - 1];
-    }
-    const savedType = pd.dyeing.map(i => i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') dyePlanType = savedType;
-  }
+  const planKnitStart = knitPlanInfo.startDate;
+  const planKnitEnd = knitPlanInfo.endDate;
+  const knitPlanType = knitPlanInfo.planType;
 
-  let planDeliStart = o.deliStart, planDeliEnd = o.deliEnd;
-  let deliPlanType = "T&A";
-  if (pd.delivery && pd.delivery.length > 0) {
-    const floorItems = pd.delivery.filter(i => {
-      const type = i.floorPlanType || i["Delivery Plan Type (Floor)"] || "";
-      return type === 'Confirm' || type === 'Tentative';
-    });
-    const sourceItems = floorItems.length ? floorItems : pd.delivery;
-    const starts = sourceItems.map(i => i.floorStartDate || i["Delivery Plan Start (Floor)"] || i.startDate || i["Delivery Plan Start"]).filter(Boolean).sort();
-    const ends = sourceItems.map(i => i.floorEndDate || i["Delivery Plan End (Floor)"] || i.endDate || i["Delivery Plan End"]).filter(Boolean).sort();
-    if (starts.length) {
-      planDeliStart = starts[0];
-      planDeliEnd = ends[ends.length - 1];
-    }
-    const savedType = sourceItems.map(i => i.floorPlanType || i.planType).find(Boolean);
-    if (savedType && savedType !== 'Select') deliPlanType = savedType;
-  }
+  const planDyeStart = dyePlanInfo.startDate;
+  const planDyeEnd = dyePlanInfo.endDate;
+  const dyePlanType = dyePlanInfo.planType;
+
+  const planDeliStart = deliPlanInfo.startDate;
+  const planDeliEnd = deliPlanInfo.endDate;
+  const deliPlanType = deliPlanInfo.planType;
 
   let actYarnDate = "";
   if (pd.knitting && pd.knitting.length > 0) {
-    const found = pd.knitting.map(i => i.yarnDate).find(Boolean);
+    const activeIds = new Set(kItems.map((item, idx) => getPPIItemId(item, "knitting", o.orderNo) || `item_${idx}`));
+    const activeSaved = pd.knitting.filter(i => {
+      const id = i.itemId ? String(i.itemId).toLowerCase().replace(/\s+/g, "") : getPPIItemId(i.itemData || i, "knitting", o.orderNo);
+      return activeIds.has(id);
+    });
+    const found = activeSaved.map(i => i.yarnDate).find(Boolean);
     if (found) actYarnDate = found;
   }
   if (!actYarnDate && pd.knittingActual && pd.knittingActual.yarnDate) {
