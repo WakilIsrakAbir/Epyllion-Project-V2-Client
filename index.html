@@ -946,7 +946,7 @@
                     <div class="p-5 border-b border-gray-200 flex justify-between items-center gap-3">
                         <h1 id="planFilterTitle" class="text-xl font-black text-gray-800">Plan Filter</h1>
                     </div>
-                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div id="pfFilterGrid" class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <label><span class="block text-xs font-bold mb-1.5 text-gray-700">From</span>
                             <input id="pfFromDate" type="date" class="w-full border border-gray-300 rounded-md px-3 py-2.5 bg-white text-gray-800 focus:outline-none focus:border-blue-500">
                         </label>
@@ -962,6 +962,17 @@
                                     <input id="pfBuyerAll" type="checkbox" checked>All Buyers
                                 </label>
                                 <div id="pfBuyerOptions" class="max-h-56 overflow-y-auto custom-scrollbar"></div>
+                            </div>
+                        </label>
+                        <label id="pfUnitContainer" class="relative hidden"><span class="block text-xs font-bold mb-1.5 text-gray-700">Unit</span>
+                            <button id="pfUnitBtn" type="button" class="w-full min-h-[42px] border border-gray-300 rounded-md px-3 py-2.5 flex items-center justify-between gap-2 text-left bg-white text-gray-800 hover:bg-gray-50">
+                                <span id="pfUnitLabel" class="truncate">All Units</span><i class="fas fa-chevron-down text-[10px] text-gray-500"></i>
+                            </button>
+                            <div id="pfUnitDropdown" class="hidden absolute top-full mt-1 z-30 w-full min-w-[220px] bg-white border border-gray-200 rounded-md shadow-xl overflow-hidden">
+                                <label class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 font-bold cursor-pointer hover:bg-gray-50 text-gray-800">
+                                    <input id="pfUnitAll" type="checkbox" checked>All Units
+                                </label>
+                                <div id="pfUnitOptions" class="max-h-56 overflow-y-auto custom-scrollbar"></div>
                             </div>
                         </label>
                         <label><span class="block text-xs font-bold mb-1.5 text-gray-700">Type</span>
@@ -1013,7 +1024,7 @@
                     <div class="p-5 border-b border-gray-200 flex justify-between items-center gap-3">
                         <h1 id="pvatfTitle" class="text-xl font-black text-gray-800">Knitting Plan Tracking Filter</h1>
                     </div>
-                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div id="pvatfFilterGrid" class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <label><span class="block text-xs font-bold mb-1.5 text-gray-700">From</span>
                             <input id="pvatfFromDate" type="date" class="w-full border border-gray-300 rounded-md px-3 py-2.5 bg-white text-gray-800 focus:outline-none focus:border-blue-500 text-xs">
                         </label>
@@ -1029,6 +1040,17 @@
                                     <input id="pvatfBuyerAll" type="checkbox" checked>All Buyers
                                 </label>
                                 <div id="pvatfBuyerOptions" class="max-h-56 overflow-y-auto custom-scrollbar"></div>
+                            </div>
+                        </label>
+                        <label id="pvatfUnitContainer" class="relative hidden"><span class="block text-xs font-bold mb-1.5 text-gray-700">Unit</span>
+                            <button id="pvatfUnitBtn" type="button" class="w-full min-h-[42px] border border-gray-300 rounded-md px-3 py-2.5 flex items-center justify-between gap-2 text-left bg-white text-gray-800 hover:bg-gray-50 text-xs">
+                                <span id="pvatfUnitLabel" class="truncate">All Units</span><i class="fas fa-chevron-down text-[10px] text-gray-500"></i>
+                            </button>
+                            <div id="pvatfUnitDropdown" class="hidden absolute top-full mt-1 z-30 w-full min-w-[220px] bg-white border border-gray-200 rounded-md shadow-xl overflow-hidden">
+                                <label class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 font-bold cursor-pointer hover:bg-gray-50 text-gray-800 text-xs">
+                                    <input id="pvatfUnitAll" type="checkbox" checked>All Units
+                                </label>
+                                <div id="pvatfUnitOptions" class="max-h-56 overflow-y-auto custom-scrollbar"></div>
                             </div>
                         </label>
                         <label><span class="block text-xs font-bold mb-1.5 text-gray-700">Type</span>

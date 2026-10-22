@@ -136,6 +136,18 @@ function showPlanVsActualTrackingFilter(deptKey) {
         toInput.min = fmt(firstDay);
     }
 
+    const unitContainer = document.getElementById('pvatfUnitContainer');
+    const filterGrid = document.getElementById('pvatfFilterGrid');
+    if (unitContainer) {
+        if (isPvatfUnitProcessDept(deptKey)) {
+            unitContainer.classList.remove('hidden');
+            if (filterGrid) filterGrid.className = 'p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4';
+        } else {
+            unitContainer.classList.add('hidden');
+            if (filterGrid) filterGrid.className = 'p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4';
+        }
+    }
+
     fetchPlanVsActualTrackingFilterData(deptKey);
     if (typeof closeSidebarMobile === 'function') closeSidebarMobile();
 }
@@ -159,6 +171,12 @@ async function fetchPlanVsActualTrackingFilterData(deptKey) {
     pvatfLoading = true;
     pvatfAllRows = [];
     pvatfFilteredRows = [];
+
+    const unitOpts = document.getElementById('pvatfUnitOptions');
+    if (unitOpts) unitOpts.innerHTML = '';
+    const unitAll = document.getElementById('pvatfUnitAll');
+    if (unitAll) unitAll.checked = true;
+    refreshPvatfUnitLabel();
 
     const previewBtn = document.getElementById('pvatfPreviewBtn');
     if (previewBtn) {
@@ -265,10 +283,16 @@ async function fetchPlanVsActualTrackingFilterData(deptKey) {
         });
 
         populatePvatfBuyers();
+        if (isPvatfUnitProcessDept(deptKey)) {
+            populatePvatfUnits();
+        }
     } catch (err) {
         console.error('Error in Plan Vs Actual Tracking Filter:', err);
         showToast('Failed to load tracking filter data');
         populatePvatfBuyers();
+        if (isPvatfUnitProcessDept(deptKey)) {
+            populatePvatfUnits();
+        }
     } finally {
         pvatfLoading = false;
         if (previewBtn) {
@@ -326,6 +350,63 @@ function refreshPvatfBuyerLabel() {
     label.title = selected.length ? selected.join(', ') : 'All Buyers';
 }
 
+function populatePvatfUnits() {
+    const box = document.getElementById('pvatfUnitOptions');
+    const allCb = document.getElementById('pvatfUnitAll');
+    if (!box || !allCb) return;
+
+    const unitsSet = new Set();
+    pvatfAllRows.forEach(r => {
+        if (r.unit) {
+            String(r.unit).split('+').map(u => u.trim()).filter(Boolean).forEach(u => {
+                if (!['', '-', 'n/a', 'select', 'null', 'undefined'].includes(u.toLowerCase())) {
+                    unitsSet.add(u);
+                }
+            });
+        }
+    });
+
+    const units = [...unitsSet].sort((a, b) => a.localeCompare(b));
+
+    allCb.checked = true;
+    box.innerHTML = units.map(u => `
+        <label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 text-gray-700 text-xs">
+            <input type="checkbox" class="pvatfUnitChoice rounded border-gray-300" value="${u.replace(/"/g, '&quot;')}">
+            <span>${u}</span>
+        </label>
+    `).join('');
+
+    box.querySelectorAll('.pvatfUnitChoice').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const anyChecked = box.querySelectorAll('.pvatfUnitChoice:checked').length > 0;
+            allCb.checked = !anyChecked;
+            refreshPvatfUnitLabel();
+        });
+    });
+
+    refreshPvatfUnitLabel();
+}
+
+function getSelectedPvatfUnits() {
+    const allCb = document.getElementById('pvatfUnitAll');
+    if (!allCb || allCb.checked) return [];
+    return [...document.querySelectorAll('.pvatfUnitChoice:checked')].map(x => x.value);
+}
+
+function refreshPvatfUnitLabel() {
+    const label = document.getElementById('pvatfUnitLabel');
+    if (!label) return;
+    const selected = getSelectedPvatfUnits();
+    if (selected.length === 0) {
+        label.textContent = 'All Units';
+    } else if (selected.length <= 2) {
+        label.textContent = selected.join(', ');
+    } else {
+        label.textContent = `${selected.length} Units Selected`;
+    }
+    label.title = selected.length ? selected.join(', ') : 'All Units';
+}
+
 function previewPlanVsActualTrackingFilter() {
     if (pvatfLoading) return;
 
@@ -345,10 +426,17 @@ function previewPlanVsActualTrackingFilter() {
     const selectedBuyers = getSelectedPvatfBuyers();
     const buyerSet = new Set(selectedBuyers.map(b => b.toLowerCase()));
 
+    const selectedUnits = getSelectedPvatfUnits();
+    const unitSet = new Set(selectedUnits.map(u => u.toLowerCase()));
+
     const rows = pvatfAllRows.filter(r => {
         const d = r[type];
         if (!d || d < from || d > to) return false;
         if (buyerSet.size > 0 && !buyerSet.has(String(r.buyer || '').toLowerCase())) return false;
+        if (isPvatfUnitProcessDept(pvatfCurrentDept) && unitSet.size > 0) {
+            const rUnits = String(r.unit || '').split('+').map(u => u.trim().toLowerCase()).filter(Boolean);
+            if (!rUnits.some(u => unitSet.has(u))) return false;
+        }
         return true;
     });
 
@@ -372,7 +460,7 @@ function previewPlanVsActualTrackingFilter() {
         };
     });
 
-    renderPvatfPreviewModal(from, to, type, selectedBuyers);
+    renderPvatfPreviewModal(from, to, type, selectedBuyers, selectedUnits);
 }
 
 function formatPvatfPercent(count, total) {
@@ -381,7 +469,7 @@ function formatPvatfPercent(count, total) {
     return (pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)) + '%';
 }
 
-function renderPvatfPreviewModal(from, to, type, selectedBuyers) {
+function renderPvatfPreviewModal(from, to, type, selectedBuyers, selectedUnits = []) {
     const title = document.getElementById('pvatfModalTitle');
     const meta = document.getElementById('pvatfModalMeta');
     const thead = document.getElementById('pvatfThead');
@@ -412,9 +500,12 @@ function renderPvatfPreviewModal(from, to, type, selectedBuyers) {
     if (title) title.textContent = pvatfConfigs[pvatfCurrentDept].title;
     if (meta) {
         const buyerText = selectedBuyers.length ? selectedBuyers.join(', ') : 'All Buyers';
+        const unitPart = isPvatfUnitProcessDept(pvatfCurrentDept)
+            ? ` | Unit: ${esc(selectedUnits.length ? selectedUnits.join(', ') : 'All Units')}`
+            : '';
         const dateLabel = typeLabels[type] || 'Plan Start Date';
         meta.innerHTML = `
-            <span class="text-gray-600">${esc(dateLabel)}: ${esc(from)} to ${esc(to)} | Buyer: ${esc(buyerText)} | Rows: ${totalRows}</span>
+            <span class="text-gray-600">${esc(dateLabel)}: ${esc(from)} to ${esc(to)} | Buyer: ${esc(buyerText)}${unitPart} | Rows: ${totalRows}</span>
             <span class="text-gray-400 mx-1">|</span>
             <span class="font-semibold text-gray-800">Start Plan:</span>
             <span>Fail: <strong class="text-red-600">${startFail}</strong>, Fail%: <strong class="text-red-600">${startFailPct}</strong>, Pass: <strong class="text-green-600">${startPass}</strong>, Pass%: <strong class="text-green-600">${startPassPct}</strong></span>
@@ -649,7 +740,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const unitBtn = document.getElementById('pvatfUnitBtn');
+    const unitDrop = document.getElementById('pvatfUnitDropdown');
+    const unitAll = document.getElementById('pvatfUnitAll');
+
+    if (unitBtn && unitDrop) {
+        unitBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            unitDrop.classList.toggle('hidden');
+        });
+
+        unitDrop.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    if (unitAll) {
+        unitAll.addEventListener('change', () => {
+            if (unitAll.checked) {
+                document.querySelectorAll('.pvatfUnitChoice').forEach(x => x.checked = false);
+            } else if (!document.querySelector('.pvatfUnitChoice:checked')) {
+                unitAll.checked = true;
+            }
+            refreshPvatfUnitLabel();
+        });
+    }
+
     document.addEventListener('click', () => {
         if (buyerDrop) buyerDrop.classList.add('hidden');
+        if (unitDrop) unitDrop.classList.add('hidden');
     });
 });

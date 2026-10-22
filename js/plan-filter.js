@@ -182,6 +182,22 @@ function showPlanFilter(deptKey) {
   document.getElementById("pfToDate").value = fmtDate(today);
   document.getElementById("pfToDate").min = fmtDate(firstDay);
 
+  const unitContainer = document.getElementById("pfUnitContainer");
+  const filterGrid = document.getElementById("pfFilterGrid");
+  if (unitContainer) {
+    if (deptKey === "dyeing") {
+      unitContainer.classList.remove("hidden");
+      if (filterGrid) {
+        filterGrid.className = "p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4";
+      }
+    } else {
+      unitContainer.classList.add("hidden");
+      if (filterGrid) {
+        filterGrid.className = "p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4";
+      }
+    }
+  }
+
   // Fetch data for the selected department
   fetchPlanFilterData(deptKey);
 }
@@ -234,6 +250,12 @@ async function fetchPlanFilterData(deptKey) {
   document.getElementById("pfBuyerOptions").innerHTML = "";
   document.getElementById("pfBuyerAll").checked = true;
   updatePfBuyerLabel();
+
+  const unitOpts = document.getElementById("pfUnitOptions");
+  if (unitOpts) unitOpts.innerHTML = "";
+  const unitAll = document.getElementById("pfUnitAll");
+  if (unitAll) unitAll.checked = true;
+  updatePfUnitLabel();
 
   try {
     const dbDeptKey = deptKey === "deliveryfloor" ? "delivery" : deptKey;
@@ -470,6 +492,9 @@ async function fetchPlanFilterData(deptKey) {
     }
 
     populatePfBuyers();
+    if (deptKey === "dyeing") {
+      populatePfUnits();
+    }
   } catch (e) {
     console.error("Error fetching plan filter data:", e);
   }
@@ -493,6 +518,86 @@ function updatePfBuyerLabel() {
       ? s.join(", ")
       : `${s.length} Buyers Selected`;
   el.title = s.length ? s.join(", ") : "All Buyers";
+}
+
+function pfSelectedUnits() {
+  const unitAll = document.getElementById("pfUnitAll");
+  if (!unitAll || unitAll.checked) return [];
+  return [...document.querySelectorAll(".pf-unit-choice:checked")].map(
+    (x) => x.value,
+  );
+}
+
+function updatePfUnitLabel() {
+  const s = pfSelectedUnits();
+  const el = document.getElementById("pfUnitLabel");
+  if (!el) return;
+  el.textContent = !s.length
+    ? "All Units"
+    : s.length <= 2
+      ? s.join(", ")
+      : `${s.length} Units Selected`;
+  el.title = s.length ? s.join(", ") : "All Units";
+}
+
+function populatePfUnits() {
+  const box = document.getElementById("pfUnitOptions");
+  const allCb = document.getElementById("pfUnitAll");
+  if (!box || !allCb) return;
+
+  const unitsSet = new Set();
+  if (typeof dropdownMasterCache !== "undefined" && dropdownMasterCache.units) {
+    (dropdownMasterCache.units || [])
+      .filter((u) => u.status === "ACTIVE")
+      .forEach((u) => {
+        if (u.name) unitsSet.add(String(u.name).trim());
+      });
+  }
+
+  pfAllData.forEach((r) => {
+    if (r.Unit) {
+      String(r.Unit)
+        .split("+")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((part) => {
+          if (!["", "-", "n/a", "select", "null", "undefined"].includes(part.toLowerCase())) {
+            unitsSet.add(part);
+          }
+        });
+    }
+  });
+
+  const units = [...unitsSet].filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+  allCb.checked = true;
+  box.innerHTML = units
+    .map((u) => {
+      const escaped = String(u ?? "").replace(
+        /[&<>"']/g,
+        (m) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;",
+          })[m],
+      );
+      return `<label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 text-gray-700">
+            <input class="pf-unit-choice" type="checkbox" value="${escaped}"><span>${escaped}</span>
+        </label>`;
+    })
+    .join("");
+
+  box.querySelectorAll(".pf-unit-choice").forEach((cb) => {
+    cb.onchange = () => {
+      const picked = [...box.querySelectorAll(".pf-unit-choice:checked")];
+      allCb.checked = !picked.length;
+      updatePfUnitLabel();
+    };
+  });
+  updatePfUnitLabel();
 }
 
 function populatePfBuyers() {
@@ -565,6 +670,8 @@ function previewPlanFilter() {
   const t = document.getElementById("pfToDate").value;
   const type = document.getElementById("pfDateType").value;
   const buyers = new Set(pfSelectedBuyers());
+  const selectedUnits = pfSelectedUnits();
+  const unitSet = new Set(selectedUnits.map((u) => u.toLowerCase()));
 
   if (!f || !t) {
     if (typeof showToast === "function")
@@ -576,7 +683,15 @@ function previewPlanFilter() {
   pfFilteredData = pfAllData.filter((r) => {
     const dt = type === "start" ? r._start : r._end;
     const buyerNorm = r.Buyer ? r.Buyer.trim().toUpperCase() : "";
-    return dt && dt >= f && dt <= t && (!buyers.size || buyers.has(buyerNorm));
+    if (!(dt && dt >= f && dt <= t && (!buyers.size || buyers.has(buyerNorm)))) {
+      return false;
+    }
+    if (pfCurrentDept === "dyeing" && unitSet.size > 0) {
+      const rowUnit = String(r.Unit || "").toLowerCase();
+      const parts = rowUnit.split("+").map((s) => s.trim()).filter(Boolean);
+      if (!parts.some((p) => unitSet.has(p))) return false;
+    }
+    return true;
   });
 
   if (!pfFilteredData.length) {
@@ -603,7 +718,8 @@ function previewPlanFilter() {
   document.getElementById("pfModalTitle").textContent =
     pfConfigs[pfCurrentDept].title;
 
-  const metaStr = `${type === "start" ? "Start Date" : "End Date"}: ${f} to ${t} | Buyer: ${[...buyers].join(", ") || "All Buyers"} | Rows: ${pfFilteredData.length}`;
+  const unitPart = pfCurrentDept === "dyeing" ? ` | Unit: ${selectedUnits.join(", ") || "All Units"}` : "";
+  const metaStr = `${type === "start" ? "Start Date" : "End Date"}: ${f} to ${t} | Buyer: ${[...buyers].join(", ") || "All Buyers"}${unitPart} | Rows: ${pfFilteredData.length}`;
   document.getElementById("pfModalMeta").textContent = metaStr;
 
   document.getElementById("pfThead").innerHTML =
@@ -686,9 +802,40 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  const unitBtn = document.getElementById("pfUnitBtn");
+  const unitDropdown = document.getElementById("pfUnitDropdown");
+  const unitAll = document.getElementById("pfUnitAll");
+
+  if (unitBtn) {
+    unitBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (unitDropdown) unitDropdown.classList.toggle("hidden");
+    };
+  }
+
+  if (unitDropdown) {
+    unitDropdown.onclick = (e) => e.stopPropagation();
+  }
+
+  if (unitAll) {
+    unitAll.onchange = (e) => {
+      if (e.target.checked) {
+        document
+          .querySelectorAll(".pf-unit-choice")
+          .forEach((x) => (x.checked = false));
+      } else if (!document.querySelector(".pf-unit-choice:checked")) {
+        e.target.checked = true;
+      }
+      updatePfUnitLabel();
+    };
+  }
+
   document.addEventListener("click", () => {
     if (buyerDropdown && !buyerDropdown.classList.contains("hidden")) {
       buyerDropdown.classList.add("hidden");
+    }
+    if (unitDropdown && !unitDropdown.classList.contains("hidden")) {
+      unitDropdown.classList.add("hidden");
     }
   });
 
