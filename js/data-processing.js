@@ -55,8 +55,11 @@ function generateItemId(itemData, tabId) {
     let procName = String(
       itemData.ProcessName !== undefined && itemData.ProcessName !== null
         ? itemData.ProcessName
-        : "N/A",
+        : (itemData["Process Name"] !== undefined && itemData["Process Name"] !== null
+          ? itemData["Process Name"]
+          : "")
     ).trim();
+    if (procName.toLowerCase() === "n/a" || procName === "-") procName = "";
     return `${bNo}_${color}_${procName}`.toLowerCase().replace(/\s+/g, "");
   }
 }
@@ -414,7 +417,8 @@ async function fetchReportData(currentDept) {
     );
 
     let hasConfirm = false,
-      hasTentative = false;
+      hasTentative = false,
+      hasPending = false;
     if (res && res.ok) {
       const d = await res.json();
       hasConfirm = d.total > 0;
@@ -422,6 +426,15 @@ async function fetchReportData(currentDept) {
     if (tentRes && tentRes.ok) {
       const d = await tentRes.json();
       hasTentative = d.total > 0;
+    }
+    if (currentDept === "yd" || currentDept === "delivery") {
+      const pendRes = await fetch(
+        `${API_BASE}/api/orders?dept=${currentDept}&status=Pending&limit=1`,
+      ).catch(() => null);
+      if (pendRes && pendRes.ok) {
+        const pd = await pendRes.json();
+        hasPending = pd.total > 0;
+      }
     }
 
     const cardCombinedReport = document.getElementById("cardCombinedReport");
@@ -435,7 +448,7 @@ async function fetchReportData(currentDept) {
     if (btnTextEl)
       btnTextEl.innerText = `Download ${currentDept.toUpperCase()} Data`;
 
-    const hasData = hasConfirm || hasTentative;
+    const hasData = hasConfirm || hasTentative || (hasPending && (currentDept === "yd" || currentDept === "delivery"));
 
     if (cardCombinedReport)
       cardCombinedReport.style.display = hasData ? "flex" : "none";

@@ -147,7 +147,25 @@ async function openDetailedView(encodedBookingNo) {
 
                 const itemId = generateItemId(itemData, currentDept) || `item_${idx}`;
                 
-                const dbItem = dbMap.get(itemId);
+                let dbItem = dbMap.get(itemId);
+                if (!dbItem && dbItems.length > 0) {
+                    const cleanId = itemId.replace(/(_n\/a|_)$/i, "");
+                    dbItem = dbItems.find(d => d.itemId && d.itemId.toLowerCase().replace(/(_n\/a|_)$/i, "") === cleanId.toLowerCase());
+
+                    if (!dbItem && (currentDept === 'dyeing' || currentDept === 'finishing')) {
+                        const color = String(itemData.Color || '').trim().toLowerCase();
+                        if (color) {
+                            dbItem = dbItems.find(d => d.itemData && String(d.itemData.Color || '').trim().toLowerCase() === color);
+                        }
+                    }
+
+                    if (!dbItem && currentDept === 'yd') {
+                        const ydb = String(itemData.YDB || itemData['YD B'] || '').trim().toLowerCase();
+                        if (ydb && ydb !== 'n/a') {
+                            dbItem = dbItems.find(d => d.itemData && String(d.itemData.YDB || d.itemData['YD B'] || '').trim().toLowerCase() === ydb);
+                        }
+                    }
+                }
                 
                 if (dbItem && dbItem.itemData) {
                     if (dbItem.itemData.Unit) itemData.Unit = dbItem.itemData.Unit;
@@ -157,12 +175,36 @@ async function openDetailedView(encodedBookingNo) {
                     if (dbItem.itemData['Workable Qty.']) itemData['Workable Qty.'] = dbItem.itemData['Workable Qty.'];
                 }
 
+                let sDate = dbItem ? dbItem.startDate || '' : '';
+                let eDate = dbItem ? dbItem.endDate || '' : '';
+                let pType = dbItem ? dbItem.planType || '' : '';
+
+                // Fallback to order-level T&A dates if item dates are blank
+                if (!sDate || !eDate) {
+                    if (currentDept === 'dyeing') {
+                        sDate = sDate || (order.dyeStart && order.dyeStart !== 'N/A' ? order.dyeStart : '');
+                        eDate = eDate || (order.dyeEnd && order.dyeEnd !== 'N/A' ? order.dyeEnd : '');
+                    } else if (currentDept === 'knitting') {
+                        sDate = sDate || (order.knitStart && order.knitStart !== 'N/A' ? order.knitStart : '');
+                        eDate = eDate || (order.knitEnd && order.knitEnd !== 'N/A' ? order.knitEnd : '');
+                    } else if (currentDept === 'delivery') {
+                        sDate = sDate || (order.deliStart && order.deliStart !== 'N/A' ? order.deliStart : '');
+                        eDate = eDate || (order.deliEnd && order.deliEnd !== 'N/A' ? order.deliEnd : '');
+                    } else if (currentDept === 'yd') {
+                        sDate = sDate || (order.ydStart && order.ydStart !== 'N/A' ? order.ydStart : '');
+                        eDate = eDate || (order.ydEnd && order.ydEnd !== 'N/A' ? order.ydEnd : '');
+                    }
+                    if (!pType && sDate && eDate) {
+                        pType = 'Tentative';
+                    }
+                }
+
                 data.mergedItems.push({
                     itemId: itemId,
                     itemData: itemData,
-                    startDate: dbItem ? dbItem.startDate || '' : '',
-                    endDate: dbItem ? dbItem.endDate || '' : '',
-                    planType: dbItem ? dbItem.planType || '' : '',
+                    startDate: sDate,
+                    endDate: eDate,
+                    planType: pType,
                     limitation: dbItem ? dbItem.limitation || '' : '',
                     remarks: dbItem ? dbItem.remarks || '' : '',
                     floorStartDate: dbItem ? dbItem.floorStartDate || '' : '',
@@ -302,11 +344,21 @@ async function openDetailedView(encodedBookingNo) {
                     knitPlan.remark = kItem.remarks || '';
                 }
             }
+            if (!knitPlan.start && data.generalInfo) {
+                knitPlan.start = data.generalInfo.KnitStart !== 'N/A' ? data.generalInfo.KnitStart : '';
+                knitPlan.end = data.generalInfo.KnitEnd !== 'N/A' ? data.generalInfo.KnitEnd : '';
+                if (knitPlan.start && !knitPlan.type) knitPlan.type = 'Tentative';
+            }
 
+            const userRoleDye = localStorage.getItem('role') || '';
+            const isAdminDye = ['admin', 'approver'].includes(userRoleDye.toLowerCase());
+            const hasExistingDyePlan = Boolean(item.planType || item.startDate);
             const isKnitTypeSelected = Boolean(knitPlan.type && knitPlan.type !== 'Select' && knitPlan.type !== '-' && knitPlan.type !== '');
-            const dyeDisabledAttr = !isKnitTypeSelected ? 'disabled' : '';
-            const dyeDisabledCls = !isKnitTypeSelected ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800/60' : '';
-            const dyeDisabledTitle = !isKnitTypeSelected ? 'title="Knitting Plan type selection is mandatory to input Dyeing plan"' : '';
+            const isDyeAllowed = isAdminDye || isKnitTypeSelected || hasExistingDyePlan;
+
+            const dyeDisabledAttr = !isDyeAllowed ? 'disabled' : '';
+            const dyeDisabledCls = !isDyeAllowed ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800/60' : '';
+            const dyeDisabledTitle = !isDyeAllowed ? 'title="Knitting Plan type selection is mandatory to input Dyeing plan"' : '';
 
             itemHtml += `
                 <td class="p-2 border-r border-gray-300 text-center text-gray-500 bg-gray-50 min-w-[80px] knit-start" data-val="${knitPlan.start}">${formatDateDisplay(knitPlan.start)}</td>
@@ -353,15 +405,30 @@ async function openDetailedView(encodedBookingNo) {
                     if (kItem) { knitPlan.start = kItem.startDate || ''; knitPlan.end = kItem.endDate || ''; }
                 }
                 if (data.dbData.dyeing) {
-                    const dItem = data.dbData.dyeing.find(d => d.itemData && String(d.itemData.Color || '').trim().toLowerCase() === myColor);
+                    const dItem = data.dbData.dyeing.find(d => {
+                        if (!d) return false;
+                        if (d.itemData && String(d.itemData.Color || '').trim().toLowerCase() === myColor) return true;
+                        if (d.itemId && d.itemId.toLowerCase().includes(`_${myColor}_`)) return true;
+                        return false;
+                    });
                     if (dItem) { dyePlan.start = dItem.startDate || ''; dyePlan.end = dItem.endDate || ''; dyePlan.type = dItem.planType || ''; }
                 }
             }
+            if (!dyePlan.start && data.generalInfo) {
+                dyePlan.start = data.generalInfo.DyeStart !== 'N/A' ? data.generalInfo.DyeStart : '';
+                dyePlan.end = data.generalInfo.DyeEnd !== 'N/A' ? data.generalInfo.DyeEnd : '';
+                if (dyePlan.start && !dyePlan.type) dyePlan.type = 'Tentative';
+            }
 
+            const userRoleDeli = localStorage.getItem('role') || '';
+            const isAdminDeli = ['admin', 'approver'].includes(userRoleDeli.toLowerCase());
+            const hasExistingDeliveryPlan = Boolean(item.floorPlanType || item.planType || item.floorStartDate || item.startDate);
             const isDyeTypeSelected = Boolean(dyePlan.type && dyePlan.type !== 'Select' && dyePlan.type !== '-' && dyePlan.type !== '');
-            const deliDisabledAttr = !isDyeTypeSelected ? 'disabled' : '';
-            const deliDisabledCls = !isDyeTypeSelected ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800/60' : '';
-            const deliDisabledTitle = !isDyeTypeSelected ? 'title="Dyeing Plan type selection is mandatory to input Delivery plan"' : '';
+            const isDeliveryAllowed = isAdminDeli || isDyeTypeSelected || hasExistingDeliveryPlan;
+
+            const deliDisabledAttr = !isDeliveryAllowed ? 'disabled' : '';
+            const deliDisabledCls = !isDeliveryAllowed ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800/60' : '';
+            const deliDisabledTitle = !isDeliveryAllowed ? 'title="Dyeing Plan type selection is mandatory to input Delivery plan"' : '';
 
             // Generate Floor Dates
             let floorStart = item.floorStartDate || '';
