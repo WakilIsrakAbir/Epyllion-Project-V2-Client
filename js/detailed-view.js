@@ -175,29 +175,13 @@ async function openDetailedView(encodedBookingNo) {
                     if (dbItem.itemData['Workable Qty.']) itemData['Workable Qty.'] = dbItem.itemData['Workable Qty.'];
                 }
 
+                if (!itemData.Unit && order.floor) itemData.Unit = order.floor;
+                if (!itemData.ProcessName && order.programType) itemData.ProcessName = order.programType;
+                if (!itemData['Process Name'] && order.programType) itemData['Process Name'] = order.programType;
+
                 let sDate = dbItem ? dbItem.startDate || '' : '';
                 let eDate = dbItem ? dbItem.endDate || '' : '';
                 let pType = dbItem ? dbItem.planType || '' : '';
-
-                // Fallback to order-level T&A dates if item dates are blank
-                if (!sDate || !eDate) {
-                    if (currentDept === 'dyeing') {
-                        sDate = sDate || (order.dyeStart && order.dyeStart !== 'N/A' ? order.dyeStart : '');
-                        eDate = eDate || (order.dyeEnd && order.dyeEnd !== 'N/A' ? order.dyeEnd : '');
-                    } else if (currentDept === 'knitting') {
-                        sDate = sDate || (order.knitStart && order.knitStart !== 'N/A' ? order.knitStart : '');
-                        eDate = eDate || (order.knitEnd && order.knitEnd !== 'N/A' ? order.knitEnd : '');
-                    } else if (currentDept === 'delivery') {
-                        sDate = sDate || (order.deliStart && order.deliStart !== 'N/A' ? order.deliStart : '');
-                        eDate = eDate || (order.deliEnd && order.deliEnd !== 'N/A' ? order.deliEnd : '');
-                    } else if (currentDept === 'yd') {
-                        sDate = sDate || (order.ydStart && order.ydStart !== 'N/A' ? order.ydStart : '');
-                        eDate = eDate || (order.ydEnd && order.ydEnd !== 'N/A' ? order.ydEnd : '');
-                    }
-                    if (!pType && sDate && eDate) {
-                        pType = 'Tentative';
-                    }
-                }
 
                 data.mergedItems.push({
                     itemId: itemId,
@@ -344,11 +328,6 @@ async function openDetailedView(encodedBookingNo) {
                     knitPlan.remark = kItem.remarks || '';
                 }
             }
-            if (!knitPlan.start && data.generalInfo) {
-                knitPlan.start = data.generalInfo.KnitStart !== 'N/A' ? data.generalInfo.KnitStart : '';
-                knitPlan.end = data.generalInfo.KnitEnd !== 'N/A' ? data.generalInfo.KnitEnd : '';
-                if (knitPlan.start && !knitPlan.type) knitPlan.type = 'Tentative';
-            }
 
             const userRoleDye = localStorage.getItem('role') || '';
             const isAdminDye = ['admin', 'approver'].includes(userRoleDye.toLowerCase());
@@ -413,11 +392,6 @@ async function openDetailedView(encodedBookingNo) {
                     });
                     if (dItem) { dyePlan.start = dItem.startDate || ''; dyePlan.end = dItem.endDate || ''; dyePlan.type = dItem.planType || ''; }
                 }
-            }
-            if (!dyePlan.start && data.generalInfo) {
-                dyePlan.start = data.generalInfo.DyeStart !== 'N/A' ? data.generalInfo.DyeStart : '';
-                dyePlan.end = data.generalInfo.DyeEnd !== 'N/A' ? data.generalInfo.DyeEnd : '';
-                if (dyePlan.start && !dyePlan.type) dyePlan.type = 'Tentative';
             }
 
             const userRoleDeli = localStorage.getItem('role') || '';
