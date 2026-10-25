@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batch Plan | Textile Planning Solution</title>
+<!-- Batch Plan module page. Opened inside the project (index.html) in an iframe.
+     Built from the Batch Plan demo; data is stored on the backend (/api/batch). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/batch.css">
+<style>
+:root{
+  --navy-dark: #112a46;
+  --navy-accent: #1f3650;
+  --primary-blue: #1d5ab2;
+  --primary-hover: #15468d;
+  --btn-active: #203348;
+  --text-dark: #17263b;
+  --text-muted: #5c6f84;
+  --bg-page: #f2f5f9;
+  --bg-card: #ffffff;
+  --border-color: #d1dce7;
+  --border-light: #e3ebf3;
+  --row-alt: #f8fbfe;
+  --accent-cyan: #0284c7;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color:var(--text-dark);
+  background:var(--bg-page);
+  -webkit-font-smoothing:antialiased;
+}
+.app{display:flex;min-height:100vh}
+
+/* Sidebar navigation */
+.sidebar{
+  width:240px;
+  flex:none;
+  background:var(--navy-dark);
+  color:#dce9f6;
+  padding:22px 14px;
+  display:flex;
+  flex-direction:column;
+  box-shadow:2px 0 10px rgba(0,0,0,0.06);
+}
+.brand{
+  font-size:18px;
+  font-weight:800;
+  line-height:1.25;
+  color:#fff;
+  padding:0 8px 18px;
+  border-bottom:1px solid #233e5c;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.user-profile{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 8px;
+  font-size:13px;
+  border-bottom:1px solid #1c3653;
+  color:#9ab5d0;
+}
+.user-avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  background:#23446b;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#61b5ff;
+  font-weight:bold;
+}
+.nav-label{
+  font-size:10px;
+  letter-spacing:1.3px;
+  text-transform:uppercase;
+  color:#7e98b5;
+  margin:20px 8px 6px;
+  font-weight:700;
+}
+.nav-item{
+  padding:9px 12px;
+  border-radius:7px;
+  margin:2px 0;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:13px;
+  color:#bed0e4;
+  transition:all .15s;
+}
+.nav-item:hover{background:#183b63;color:#fff}
+.nav-item.active{background:var(--primary-blue);color:#fff;font-weight:700}
+
+/* Main Content Area */
+.main{
+  flex:1;
+  min-width:0;
+  padding:22px 28px;
+  max-width:1840px;
+  margin:0 auto;
+  width:100%;
+}
+.top-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:18px;
+}
+.eyebrow{
+  font-size:11px;
+  letter-spacing:1.2px;
+  color:#4c6890;
+  text-transform:uppercase;
+  font-weight:700;
+}
+h1{margin:3px 0 0;font-size:23px;color:#13283f}
+.badge{
+  background:#e5f6ee;
+  color:#0e6b47;
+  border:1px solid #bce6d2;
+  border-radius:24px;
+  padding:6px 13px;
+  font-size:12px;
+  font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.badge-dot{width:7px;height:7px;background:#10b981;border-radius:50%}
+
+/* Card container */
+.card{
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(18,46,75,0.04);
+  overflow:hidden;
+}
+
+/* Status tabs and search bar */
+.batch-filter-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 18px;
+  border-bottom:1px solid var(--border-light);
+  gap:14px;
+  flex-wrap:wrap;
+}
+.status-tabs{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.status-btn{
+  border:1px solid #bbc9d9;
+  background:#ffffff;
+  color:#1e354f;
+  padding:8px 18px;
+  border-radius:4px;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:0.4px;
+  cursor:pointer;
+  transition:all .15s ease;
+  text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.status-btn:hover{background:#f1f6fc}
+.status-btn.active{
+  background:#203348;
+  color:#ffffff;
+  border-color:#203348;
+  box-shadow:0 2px 4px rgba(0,0,0,0.12);
+}
+.status-count{
+  display:inline-block;
+  font-size:11px;
+  padding:1px 6px;
+  border-radius:10px;
+  background:rgba(0,0,0,0.08);
+}
+.status-btn.active .status-count{
+  background:rgba(255,255,255,0.22);
+}
+
+.search-box-top{
+  display:flex;
+  align-items:stretch;
+  gap:4px;
+  min-width:320px;
+}
+.search-input-wrap{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;
+}
+.search-icon{
+  position:absolute;
+  left:10px;
+  width:14px;
+  height:14px;
+  color:#2563eb;
+  pointer-events:none;
+}
+.search-input-top{
+  width:100%;
+  padding:7px 10px 7px 30px;
+  border:1px solid #bfcedf;
+  border-radius:4px;
+  font-size:12px;
+  outline-color:var(--primary-blue);
+  color:#15293d;
+}
+.btn-search-action{
+  background:#1d5ab2;
+  color:#fff;
+  border:none;
+  padding:7px 14px;
+  border-radius:4px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.btn-search-action:hover{background:#15468d}
+.btn-clear{
+  background:#fff;
+  border:1px solid #bfcedf;
+  color:#556b82;
+  padding:7px 11px;
+  border-radius:4px;
+  font-size:12px;
+  font-weight:bold;
+  cursor:pointer;
+}
+.btn-clear:hover{background:#f1f5f9;color:#b91c1c}
+
+/* Horizontal Buyer Filter Carousel */
+.buyer-carousel-wrap{
+  padding:10px 18px;
+  background:#f9fbfe;
+  border-bottom:1px solid var(--border-light);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  overflow:hidden;
+  position:relative;
+}
+.carousel-btn{
+  background:#fff;
+  border:1px solid #cbd7e4;
+  border-radius:4px;
+  width:24px;
+  height:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  flex:none;
+  color:#475569;
+  font-size:11px;
+}
+.carousel-btn:hover{background:#e2ecf7}
+.buyer-pills-container{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  scroll-behavior:smooth;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  padding:2px 0;
+}
+.buyer-pills-container::-webkit-scrollbar{display:none}
+.buyer-btn{
+  background:#ffffff;
+  border:1px solid #ccd8e6;
+  border-radius:4px;
+  padding:5px 12px;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.3px;
+  white-space:nowrap;
+  cursor:pointer;
+  color:#233d59;
+  transition:all .12s ease;
+  flex:none;
+}
+.buyer-btn:hover{background:#e8f1fb;border-color:#b5cde6}
+.buyer-btn.active{
+  background:#1d5ab2;
+  color:#ffffff;
+  border-color:#1d5ab2;
+}
+
+/* 4-column Table Layout matching screenshot */
+.table-wrap{width:100%;overflow-x:auto}
+.register-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.register-table th, .register-table td{
+  border:1px solid var(--border-light);
+  padding:9px 14px;
+  text-align:left;
+  vertical-align:middle;
+  font-size:12.5px;
+}
+.register-table thead tr:first-child th{
+  background:#f1f6fb;
+  color:#153450;
+  font-size:12px;
+  font-weight:700;
+  border-bottom:1px solid #c9d8e8;
+}
+.register-table col.col-manage{width:85px}
+.register-table col.col-order{width:260px}
+.register-table col.col-date{width:240px}
+.register-table col.col-buyer{width:auto}
+.register-table.has-save-audit{min-width:1100px}
+.register-table.has-save-audit col.col-order{width:220px}
+.register-table.has-save-audit col.col-date{width:150px}
+.register-table.has-save-audit col.col-buyer{width:180px}
+.register-table col.col-saved-by{width:180px}
+.register-table col.col-last-save{width:220px}
+.last-save-cell{white-space:nowrap}
+
+/* Column Header Search Inputs */
+.filter-row th{
+  background:#ffffff!important;
+  padding:5px 8px!important;
+}
+.col-search-input{
+  width:100%;
+  border:1px solid #ccd8e6;
+  border-radius:4px;
+  padding:5px 8px;
+  font-size:11.5px;
+  outline-color:#1d5ab2;
+  color:#192e44;
+}
+.col-search-input::placeholder{color:#8ea3bb}
+
+/* View Eye Action Button */
+.btn-view-eye{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:30px;
+  height:30px;
+  background:#dbeafe;
+  border:1px solid #bfdbfe;
+  color:#1d4ed8;
+  border-radius:5px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.btn-view-eye:hover{
+  background:#1d4ed8;
+  color:#ffffff;
+  border-color:#1d4ed8;
+  transform:scale(1.04);
+}
+.btn-view-eye svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+
+.order-link{
+  font-weight:700;
+  color:#1d4ed8;
+  letter-spacing:0.3px;
+}
+.status-pill-small{
+  display:inline-block;
+  padding:2px 7px;
+  border-radius:12px;
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  margin-left:8px;
+}
+.status-pill-small.pending{background:#fef3c7;color:#92400e}
+.status-pill-small.tentative{background:#e0f2fe;color:#0369a1}
+.status-pill-small.confirm{background:#dcfce7;color:#15803d}
+
+tbody tr:nth-child(even){background:var(--row-alt)}
+tbody tr:hover{background:#edf4fc}
+.empty-state{
+  padding:35px 20px;
+  text-align:center;
+  color:#677d95;
+  font-size:13px;
+}
+
+/* Freeze the controls immediately above the factory heading while the report
+   scrolls. The printed report already hides this toolbar. */
+.report-toolbar{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:#f4f7fb;
+  padding:12px 0;
+  box-shadow:0 3px 6px rgba(18,47,75,.08);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+  flex-wrap:wrap;
+}
+.btn-group-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.btn{
+  border:0;
+  background:var(--primary-blue);
+  color:white;
+  border-radius:6px;
+  padding:8px 14px;
+  font-weight:700;
+  cursor:pointer;
+  font-size:12.5px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  transition:background .15s;
+}
+.btn:hover{background:var(--primary-hover)}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn.secondary{
+  background:#ffffff;
+  color:#24466f;
+  border:1px solid #c2d2e4;
+}
+.btn.secondary:hover{background:#edf3f9}
+.btn.warning{
+  background:#d97706;
+  color:#fff;
+}
+.btn.warning:hover{background:#b45309}
+.btn.success{
+  background:#059669;
+  color:#fff;
+}
+.btn.success:hover{background:#047857}
+.btn.danger{background:#dc2626}
+.btn.danger:hover{background:#b91c1c}
+
+/* Batch Plan Report Layout */
+.report{padding:26px;margin-top:10px}
+.report-title{
+  text-align:center;
+  border-bottom:3px solid var(--primary-blue);
+  padding-bottom:12px;
+  margin-bottom:20px;
+}
+.report-title h2{font-size:22px;margin:0 0 4px;color:#122f4b}
+.report-title h3{font-size:15px;margin:0;color:#284a6c}
+.report-status-badge{
+  display:inline-block;
+  margin-top:8px;
+  padding:4px 12px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+.report-status-badge.pending{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.report-status-badge.tentative{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd}
+.report-status-badge.confirm{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+
+.section{margin-top:20px}
+.section h3{
+  color:#15395c;
+  font-size:13.5px;
+  margin:0 0 8px;
+  border-left:4px solid var(--primary-blue);
+  padding:5px 9px;
+  background:#edf3f9;
+}
+.report table{table-layout:fixed;min-width:960px;font-size:11.5px;border-collapse:collapse;width:100%}
+.report th,.report td{
+  border:1px solid var(--border-color);
+  padding:7px 8px;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.report .info-table{min-width:1080px}
+.info-table th{background:#e4eef8;width:9%;font-size:10.5px;font-weight:700;color:#173756}
+.info-table td{width:7.66%;font-weight:600;color:#1e354e}
+.report .grid-table th,.report .grid-table td{text-align:center}
+.report .grid-table th{background:#d3e5f5;font-weight:700;color:#143452}
+.report .fabric-info-table{min-width:1400px}
+.report .instruction-grid{display:grid;grid-template-columns:1.7fr 1fr;gap:16px}
+.report .instruction-grid table{min-width:0}
+.loading-val{color:#c53a32;font-weight:700}
+.mc-accent{color:#155db2;font-weight:700}
+.placeholder-cell{color:#94a3b8;font-style:italic}
+.print-note{color:#64748b;text-align:right;font-size:11px;margin-top:20px}
+
+/* Uploader view styles */
+.upload-box{padding:20px 24px}
+.tab-pills{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tab-pill{
+  padding:7px 15px;
+  border-radius:20px;
+  border:1px solid #cbd7e4;
+  background:#fff;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:700;
+  color:#334e68;
+}
+.tab-pill.active{background:var(--primary-blue);color:#fff;border-color:var(--primary-blue)}
+.file-bar{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:#f8fbfe;
+  padding:14px;
+  border:1px dashed #bed0e4;
+  border-radius:8px;
+  flex-wrap:wrap;
+}
+.file-bar input[type="file"]{display:none}
+.file-display{flex:1;min-width:200px;font-size:12.5px;color:#556b82}
+.file-btn{
+  cursor:pointer;
+  background:#e2ecf7;
+  color:#194b80;
+  padding:8px 14px;
+  border-radius:6px;
+  font-size:12.5px;
+  font-weight:700;
+}
+.file-btn:hover{background:#d3e3f3}
+
+/* Notification banner */
+.toast{
+  position:fixed;
+  bottom:24px;
+  right:24px;
+  background:#1e293b;
+  color:#fff;
+  padding:12px 20px;
+  border-radius:6px;
+  font-size:13px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.2);
+  z-index:9999;
+  transition:all .25s ease;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.toast.hidden{opacity:0;pointer-events:none;transform:translateY(12px)}
+
+.hidden{display:none!important}
+
+/* Register pagination and machine setup */
+.pagination-bar,.setup-status-bar,.setup-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--border-light);font-size:12px;color:var(--text-muted)}
+.pagination-actions{display:flex;align-items:center;gap:12px}
+.page-size-select{margin:0 6px;padding:6px 10px;border:1px solid var(--border-color);border-radius:4px;background:white;color:var(--text-dark);font-size:12px}
+.setup-toolbar{border-top:0;border-bottom:1px solid var(--border-light);padding:18px 22px}
+.setup-status-bar{padding:10px 22px;border-top:0;background:#f8fbfe}
+.setup-table{width:100%;min-width:1240px;table-layout:fixed;border-collapse:collapse}
+.setup-table th,.setup-table td{border:1px solid var(--border-light);padding:6px;text-align:left;vertical-align:middle;font-size:12px}
+.setup-table th{padding:10px 8px;background:#e4eef8;color:#173756}
+.setup-input{width:100%;min-width:0;padding:7px 6px;border:1px solid #d1dce7;border-radius:4px;background:white;color:var(--text-dark);font:inherit;outline-color:var(--primary-blue)}
+.setup-input:disabled{background:#f1f5f9;opacity:.7}
+
+/* Freeze the complete heading area (including register search inputs).
+   The height limit keeps long tables scrollable in the same panel. */
+.freeze-pane{max-height:60vh;overflow:auto;overscroll-behavior:contain;position:relative}
+.freeze-pane thead{position:sticky;top:0;z-index:3;background:#f1f6fb}
+.freeze-pane table{border-collapse:separate;border-spacing:0}
+.freeze-pane thead th{box-shadow:0 1px 0 #c9d8e8}
+.freeze-pane .filter-row th{background:#fff}
+.floor-submenus{display:flex;flex-direction:column;gap:3px;padding:0 14px 10px 31px}
+.nav-floor{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:9px 10px;border:0;border-radius:5px;background:transparent;color:#b3c7dc;cursor:pointer;text-align:left;font-size:12px}
+.nav-floor:hover,.nav-floor.active{background:#23496b;color:white}
+.nav-floor span{font-size:10px;background:#153450;border-radius:10px;padding:2px 6px}
+.floor-scope-note{padding:10px 18px;background:#eef6fc;color:#244766;font-size:12px;border-bottom:1px solid var(--border-light)}
+.order-floor-links{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.floor-jump{border:1px solid #b9ccdf;background:#f1f7fd;color:#23496b;border-radius:4px;padding:4px 7px;font-size:11px;cursor:pointer}
+.floor-jump:hover{background:#dcecf9}
+.report-floor-links{margin:10px 0;display:flex;justify-content:center;align-items:center;gap:7px;flex-wrap:wrap}
+@media print{.freeze-pane{max-height:none;overflow:visible}.freeze-pane thead{position:static}.report-floor-links{display:none}}
+
+.batch-calculation-note{padding:9px 12px;margin-top:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:12px;color:#9a3412}
+
+/* Independent navigation and content panels: no outer-page scrollbar. */
+html,body{height:100%;overflow:hidden}
+.app{height:100vh;height:100dvh;min-height:0;overflow:hidden}
+.sidebar{height:100%;overflow-y:auto;overscroll-behavior:contain}
+.main{height:100%;display:flex;flex-direction:column;overflow:hidden}
+.top-header{flex:none}
+#batchPlanListView,#uploaderView,#setupView{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+#reportContainer{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+#reportContainer .report-toolbar{flex:none;position:relative;top:auto;margin-bottom:4px}
+#reportContent{flex:1;min-height:0;margin:0;overflow-y:auto;overscroll-behavior:contain}
+.fabric-picker-button{display:flex;gap:8px;justify-content:space-between;align-items:center;text-align:left;cursor:pointer;white-space:normal;min-height:32px}
+.fabric-picker-button span{flex:none}
+.fabric-picker-overlay{position:fixed;inset:0;z-index:100;background:rgba(17,42,70,.3);display:flex;align-items:center;justify-content:center;padding:16px}
+.fabric-picker-panel{width:410px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;background:white;border:1px solid #b9ccdf;border-radius:6px;box-shadow:0 8px 30px rgba(17,42,70,.25);padding:12px}
+.fabric-picker-panel h3{margin:0 0 12px;font-size:14px;color:#23496b}
+.fabric-picker-choices{min-height:80px;max-height:280px;overflow:auto;border:1px solid #d1dce7;padding:4px 8px}
+.fabric-choice{display:flex;gap:7px;align-items:center;font-size:12px;padding:4px 0;cursor:pointer;color:#17263b}
+.fabric-choice input{margin:0;flex:none}
+.fabric-select-all{padding:10px 8px 6px}
+.fabric-picker-footer{display:flex;align-items:center;gap:7px;padding-top:12px}
+.fabric-picker-footer span{margin-right:auto;font-size:12px;color:#64748b}
+.fabric-picker-empty{font-size:12px;color:#64748b;padding:12px 4px}
+
+.machine-evaluation-panel{margin-top:16px;border:1px solid #c9d8e8;padding:12px;background:#f8fbfe;border-radius:5px}
+.machine-evaluation-panel summary{font-weight:700;color:#173756;cursor:pointer;margin-bottom:10px}
+.machine-evaluation-panel label{font-size:12px}
+.machine-evaluation-panel select{margin-left:8px;padding:5px;border:1px solid #c9d8e8;border-radius:4px;max-width:70%}
+.machine-evaluation-panel p{font-size:11px;color:#64748b}
+.machine-selected td{background:#e5f6ee;font-weight:600}
+
+.colour-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.machine-evaluation-button{font-size:11.5px;padding:6px 10px}
+.machine-evaluation-overlay{position:fixed;inset:0;z-index:100;background:rgba(17,42,70,.35);display:flex;align-items:center;justify-content:center;padding:18px}
+.machine-evaluation-popup{width:1400px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;background:white;border:1px solid #c9d8e8;border-radius:7px;box-shadow:0 8px 30px rgba(17,42,70,.3);overflow:hidden}
+.machine-popup-header{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 18px;background:#edf4fb}
+.machine-popup-header h3{margin:0;font-size:16px;color:#173756}
+.machine-popup-controls{padding:10px 18px;font-size:12px}
+.machine-popup-controls select{padding:5px;border:1px solid #c9d8e8;border-radius:4px;max-width:65vw}
+.machine-popup-controls p{margin:6px 0 0;font-size:11px;color:#64748b}
+.machine-popup-table{padding:0 16px;overflow:auto;min-height:80px}
+.machine-popup-table .table-wrap{overflow:visible}
+.machine-popup-table table{min-width:1100px}
+.machine-popup-table thead{position:sticky;top:0;z-index:1;background:#e4eef8}
+.machine-popup-status{padding:10px 18px;margin:0;min-height:35px;color:#23496b;font-size:12px}
+.load-mc-button{padding:5px 8px;white-space:nowrap;font-size:11.5px}
+.machine-recommended td{background:#eef6ff}
+@media print{.machine-evaluation-overlay,.machine-evaluation-button{display:none!important}}
+
+.report-heading-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.report-add-row{font-size:11.5px;padding:6px 10px}
+.report-row-actions{min-width:140px;white-space:normal}
+.report-row-actions .btn{padding:5px 8px;font-size:11px;margin:3px}
+.report-row-input{width:100%;min-width:75px;border:1px solid #9bb8d5;background:white;border-radius:4px;padding:6px;font:inherit}
+.report-row-editing td{background:#fff7ed}
+.report-row-manual td{background:#f5faff}
+.row-edit-label,.manual-row-label{display:block;font-size:10px;font-weight:700;color:#925417}
+.manual-row-label{color:#1d5ab2}
+.row-edit-error{font-size:10px;color:#b91c1c;white-space:normal;margin-top:5px}
+.manual-report-notice{padding:9px 12px;margin-bottom:14px;border:1px solid #caddeb;background:#f2f8fc;font-size:12px;color:#315571;border-radius:5px}
+@media print{.report-edit-table th:last-child{display:none!important}.report-row-actions,.report-add-row,.manual-report-notice{display:none!important}.report-row-input{border:0;padding:0}}
+
+/* Print styles */
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  html,body{height:auto;overflow:visible}
+  .app{height:auto;min-height:0;overflow:visible;display:block}
+  .main{height:auto;overflow:visible;display:block}
+  #reportContainer{display:block;height:auto;overflow:visible}
+  #reportContent{height:auto;max-height:none;overflow:visible;flex:none}
+  .fabric-picker-overlay{display:none!important}
+  body{background:white;color:black}
+  .sidebar, .top-header, #batchPlanListView, #uploaderView, #setupView, .report-toolbar, .print-note{display:none!important}
+  .main{padding:0;max-width:none}
+  .report{display:block!important;box-shadow:none;border:0;padding:0;margin:0}
+  .report-title{margin-bottom:6px;padding-bottom:6px}
+  .report-title h2{font-size:16px}
+  .report-title h3{font-size:12px}
+  .section{margin-top:8px;break-inside:auto;page-break-inside:auto}
+  .section h3{break-after:avoid;page-break-after:avoid}
+  #reportContent .table-wrap,#reportContent table,#reportContent tbody{break-inside:auto;page-break-inside:auto}
+  #reportContent{page:batch-plan}
+  #reportContent .print-hide-knit,#reportContent .fabric-knit-note,#reportContent .knit-allocation-note,#reportContent .component-note,#reportContent .tall-big-allocation-note{display:none!important}
+  #reportContent .report-heading-actions>:not(.component-dyeing-control){display:none!important}
+  .report table, .report .info-table, .report .fabric-info-table{min-width:0;font-size:8px}
+  .report th, .report td{padding:3px 2px}
+  .table-wrap{overflow:visible}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* Tentative review: exclusive Yes/No options, displayed with checkbox marks. */
+.tentative-overlay{position:fixed;inset:0;z-index:120;background:rgba(17,42,70,.45);display:flex;align-items:center;justify-content:center;padding:18px}
+.tentative-panel{width:540px;max-width:100%;max-height:90vh;overflow:auto;background:#fff;border:1px solid #c9d8e8;border-radius:8px;padding:22px;box-shadow:0 12px 40px rgba(17,42,70,.25)}
+.tentative-panel h3{margin:0;color:#173756;font-size:18px}
+.tentative-context{font-size:12px;color:#64748b;margin:8px 0 18px}
+.tentative-panel fieldset{border:1px solid #d6e1eb;border-radius:5px;padding:12px;margin:14px 0}
+.tentative-panel legend{font-size:13px;font-weight:600;color:#23496b;padding:0 5px}
+.tentative-options{display:flex;gap:30px}
+.tentative-options label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer}
+.tentative-options input{appearance:none;width:17px;height:17px;border:1px solid #93a8bd;border-radius:3px;background:#fff;margin:0;display:grid;place-content:center}
+.tentative-options input:checked{border-color:#1d5ab2;background:#1d5ab2}
+.tentative-options input:checked::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+.tentative-options input:focus-visible{outline:2px solid #1d5ab2;outline-offset:3px}
+.tentative-panel textarea{width:100%;min-height:85px;resize:vertical;border:1px solid #b9ccdf;border-radius:5px;padding:10px;font:inherit;font-size:13px;margin-top:8px}
+.tentative-other-label{display:block;font-size:13px;color:#23496b;font-weight:600}
+.tentative-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.tentative-error{font-size:12px;color:#b91c1c;margin:10px 0 0;min-height:16px}
+.tentative-reason-notice{padding:10px 12px;margin-bottom:14px;border:1px solid #caddeb;background:#edf6fc;font-size:12px;color:#23496b;border-radius:5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.tentative-edit-answers{margin-left:12px;font-size:11px;padding:4px 8px;white-space:nowrap}
+.report-revision{display:inline-block;margin-left:12px;font-size:12px;color:#23496b;font-weight:700}
+@media print{.tentative-overlay,.tentative-edit-answers{display:none!important}.tentative-reason-notice{break-inside:avoid}}
+
+.status-tabs{flex-wrap:wrap}
+.register-table.has-reconfirmation{min-width:1450px}
+.register-table col.col-revision{width:175px}
+.register-floor-name{margin-top:4px;color:#64748b;font-size:11px}
+.reconfirm-review-notice{padding:11px 13px;margin-bottom:14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;color:#9a3412;font-size:12px}
+.component-dyeing-control{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;border:0;background:transparent}
+.component-dyeing-control select{font:inherit;padding:5px 24px 5px 8px;border:1px solid #a8bfd4;border-radius:4px;background:white;color:#173756}
+.component-note{font-size:11px;color:#64748b;margin:7px 0}
+.component-total{font-weight:700;background:#edf4fb}
+@media print{.component-dyeing-control select{appearance:none;border:0;background:transparent;padding:0 3px}}
+.instruction-table{table-layout:auto!important;min-width:0!important}
+.instruction-table th:first-child,.instruction-table td:first-child{width:1%;white-space:nowrap}
+.instruction-table [data-row-field="serial"]{min-width:0}
+.allowance-summary{font-size:11px;color:#52677e;margin:8px 0}
+@media print{.allowance-summary{display:none}}
+#batchCardView{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.card-search{max-width:260px}
+.card-list-table{width:100%;min-width:1050px;border-collapse:collapse;font-size:12px}
+.card-list-table th,.card-list-table td{border:1px solid #cfdae5;padding:9px;text-align:left;overflow-wrap:anywhere}
+.card-list-table th{background:#e4eef8;color:#173756}
+.card-list-table .btn{font-size:11px;padding:6px 9px}
+#cardOrderContent{padding:18px}
+#cardOrderContent h2{font-size:17px}
+.card-view-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:#f4f7fb;padding:12px}
+#cardRevisionNotice{font-size:12px;color:#52677e;flex:1}
+.batch-process-card{width:194mm;max-width:100%;margin:12px auto;padding:8mm;background:#fff;border:1px solid #c2d2df;color:#111;font-family:Arial,sans-serif;font-size:10px;box-sizing:border-box;page:batchcard}
+.batch-process-card header{text-align:center;margin-bottom:4mm}
+.batch-process-card h1{font-size:19px;color:#111;margin:0;text-transform:uppercase}
+.batch-process-card h2{font-size:15px;margin:2px 0}
+.card-version{font-size:9px;color:#444}
+.batch-process-card table{width:100%;border-collapse:collapse;table-layout:fixed;margin:0}
+.batch-process-card td,.batch-process-card th{border:1px solid #333;padding:3px;overflow-wrap:anywhere;vertical-align:middle}
+.batch-process-card th{font-size:9px;background:#f4f5f6;text-align:center}
+.card-process td,.card-process th{height:4mm}
+.card-fabrics{margin-top:3mm!important}
+.card-fabrics td{height:6mm;text-align:center}
+.card-identification td{height:5mm}
+.card-identification th{width:9%}
+.card-history td{height:5.2mm}
+.batch-process-card .handwriting-box{color:#a1a1a1;font-size:16px;text-align:center}
+.card-quality td{height:28mm}
+.card-components{margin:2mm 0!important;font-size:8px}
+.card-written-instructions{border:1px solid #333;padding:4px;font-size:9px;margin:2mm 0}
+.batch-process-card footer{text-align:center;font-size:8px;margin-top:3mm;color:#555}
+@page batchcard{size:A4 portrait;margin:8mm}
+@media print{
+  body.printing-batch-card .sidebar,body.printing-batch-card .top-header,body.printing-batch-card #reportContainer,body.printing-batch-card #setupView,body.printing-batch-card #batchPlanListView,body.printing-batch-card #uploaderView,body.printing-batch-card .card-view-toolbar{display:none!important}
+  body.printing-batch-card #batchCardView,body.printing-batch-card #cardPreviewPanel,body.printing-batch-card #batchCardPrintView{display:block!important;height:auto;overflow:visible}
+  body.printing-batch-card #cardRegisterPanel,body.printing-batch-card #cardOrderPanel{display:none!important}
+  body.printing-batch-card .batch-process-card{width:194mm;max-width:none;margin:0;padding:0;border:0;box-shadow:none}
+  body.printing-batch-card .batch-process-card table{break-inside:avoid}
+  body:not(.printing-batch-card) #batchCardView{display:none!important}
+}
+
+.cc-mode-control{position:relative;font-size:12px;font-weight:400;z-index:25}
+.cc-mode-control summary{list-style:none;cursor:pointer;white-space:nowrap}
+.cc-mode-control summary::-webkit-details-marker{display:none}
+.cc-mode-popover{position:absolute;right:0;top:calc(100% + 6px);width:235px;background:#fff;color:#23374d;border:1px solid #b9c5cf;border-radius:6px;box-shadow:0 8px 24px #142c492b;padding:10px;display:grid;gap:7px}
+.cc-mode-popover strong{background:#fff589;color:#202020;padding:8px;margin:-10px -10px 2px;border-radius:5px 5px 0 0;font-size:13px}
+.cc-mode-popover input[type=search]{width:100%;padding:6px;border:1px solid #b6c3d0;border-radius:3px}
+.cc-mode-option{display:flex;align-items:center;gap:7px;padding:3px 0;cursor:pointer}
+.cc-mode-option[hidden]{display:none}
+.cc-mode-fabrics{max-height:310px;overflow:auto;display:grid;gap:4px}
+.cc-mode-fabric{border-top:1px solid #e1e7ed;padding-top:4px}
+.cc-mode-fabric[hidden]{display:none}
+.cc-mode-fabric summary{display:flex;gap:8px;align-items:center;padding:5px 0}
+.cc-mode-fabric summary span{flex:1}
+.cc-mode-fabric summary::after{content:'▸'}
+.cc-mode-fabric[open] summary::after{content:'▾'}
+.cc-mode-colours{margin-left:22px;padding-left:9px;border-left:2px solid #dce4ed}
+.cc-mode-fabric small{display:block;margin:0 0 4px 22px;font-size:11px}
+.cc-mode-popover small{line-height:1.4;color:#667487}
+.tall-big-control{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.tall-big-control select,.tall-big-select{padding:6px;border:1px solid #b6c3d0;border-radius:4px;background:white;color:#23374d}
+.tall-big-select:invalid{border-color:#c28a20;background:#fffbed}
+.tall-big-popup{max-width:1000px}
+.tall-big-steps{display:flex;gap:8px;align-items:center;margin:10px 0;color:#62758a}
+.tall-big-steps .active{font-weight:700;color:#174d7c;background:#e6f0fa;padding:7px 12px;border-radius:4px}
+.tall-big-popup input[type=number]{width:110px;padding:6px;border:1px solid #b6c3d0;border-radius:4px}
+.tall-big-popup .tentative-actions{padding:12px 18px;justify-content:flex-end;gap:8px}
+.tall-big-allocation-note{padding:9px 12px;background:#eff6ff;color:#284f75;font-size:12px;margin:8px 0}
+.tall-big-errors{padding:9px 12px;border:1px solid #e7b9a7;background:#fff3ee;color:#9d321b;font-size:12px;margin:8px 0}
+.component-separate-label{font-size:11px;color:#875b00;background:#fff5d5;padding:3px 7px;border-radius:4px;margin-left:6px}
+.component-weight-input{display:block;font-size:10px;color:#60748a;margin-top:5px}
+.component-weight-input input{min-width:65px!important}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media print{.cc-mode-control{display:none!important}}
+
+.reconfirm-revision-panel{max-width:580px}
+.reconfirm-revision-panel h3{font-size:19px;line-height:1.4}
+.reconfirm-revision-panel p{font-size:13px;line-height:1.5}
+.reconfirm-revision-choices{display:grid;gap:12px;margin:18px 0}
+.reconfirm-revision-choices .btn{display:flex;flex-direction:column;align-items:flex-start;gap:7px;white-space:normal;text-align:left;padding:14px;font-size:13px}
+.reconfirm-revision-choices span{font-size:12px;font-weight:400}
+.confirmed-readonly-notice{background:#fff7df;border:1px solid #f1d58b;color:#76540f;padding:12px 14px;border-radius:6px;line-height:1.5;font-size:13px;margin:14px 0}
+@media print{#reconfirmRevisionDialog{display:none!important}}
+.knit-status{display:inline-block;border-radius:4px;padding:3px 6px;font-size:10px;font-weight:600;line-height:1.35;white-space:normal}
+.knit-ready{background:#e7f6ed;color:#12623b}.knit-short{background:#fcebec;color:#a32432}.knit-unknown,.knit-cc{background:#fff3d6;color:#875909}.knit-empty{background:#edf1f5;color:#63758b}
+.knit-status-summary{font-size:11px;min-width:96px;max-width:190px}.fabric-knit-note{margin-top:5px}.knit-allocation-note{font-size:11px;color:#60738a;line-height:1.5;margin:8px 0 0}
+.internal-change-notice{background:#fff2ce;border:1px solid #e7c15f;color:#79570c;border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.5;margin:14px 0}
+@media print{#internalChangeDialog{display:none!important}.internal-change-notice{display:block!important}}
+
+/* Per-fabric exclusion checkboxes, GSM limits and a full-report viewport. */
+.fabric-picker-panel{width:650px}
+.fabric-rule-help{font-size:12px;line-height:1.5;color:#475569;margin:0 0 10px}
+.fabric-rule-heading,.fabric-rule-choice{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:12px;align-items:center}
+.fabric-rule-heading{padding:8px 12px;background:#edf3f9;font-size:11.5px;font-weight:700;color:#23496b;border:1px solid #d1dce7;border-bottom:0}
+.fabric-rule-heading small{font-weight:400;font-size:10.5px;line-height:1.5}
+.fabric-rule-choice{padding:5px 0;border-bottom:1px solid #e7edf4}.fabric-rule-choice:last-child{border-bottom:0}
+.fabric-rule-choice .fabric-choice{overflow-wrap:anywhere}
+.fabric-rule-error{margin:6px 0 0;font-size:12px;color:#b91c1c}
+.batch-plan-preview-overlay{position:fixed;inset:0;z-index:150;background:#dce4ed;display:flex;padding:12px}
+.batch-plan-preview-panel{display:flex;flex-direction:column;min-width:0;min-height:0;width:100%;background:#f1f5f9;border:1px solid #bccbdb;border-radius:8px;overflow:hidden;box-shadow:0 12px 45px #0f172a33}
+.batch-plan-preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex:none;padding:12px 16px;background:white;border-bottom:1px solid #cbd5e1}
+.batch-plan-preview-toolbar h3{margin:0;font-size:16px;color:#15395c}.batch-plan-preview-toolbar p{margin:4px 0 0;font-size:12px;color:#64748b}
+.batch-plan-preview-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.batch-plan-preview-controls .btn{padding:7px 10px;font-size:12px}
+#batchPlanPreviewZoom{min-width:45px;text-align:center;font-size:12px;font-weight:700;color:#23496b}
+.batch-plan-preview-viewport{flex:1;min-height:0;overflow:auto;padding:24px;overscroll-behavior:contain}
+.batch-plan-preview-paper{position:relative;margin:0 auto;overflow:hidden;box-shadow:0 2px 12px #0f172a26}
+.batch-plan-preview-page.report{position:absolute;top:0;left:0;transform-origin:top left;max-width:none;height:auto;max-height:none;overflow:visible;margin:0;padding:24px;box-shadow:0 2px 12px #0f172a26;border:0;border-radius:0;background:white;display:block}
+.batch-plan-preview-page .table-wrap{overflow:visible;max-height:none}.batch-plan-preview-page thead{position:static}
+.batch-plan-preview-page .section{overflow:visible}.batch-plan-preview-page .report-row-editing td{background:inherit}
+@media(max-width:700px){.batch-plan-preview-overlay{padding:0}.batch-plan-preview-panel{border-radius:0}.fabric-rule-heading,.fabric-rule-choice{grid-template-columns:minmax(0,1fr) 125px}}
+@media print{.batch-plan-preview-overlay{display:none!important}}
+
+
+/* Reporting has its own scrolling panel and never enters booking edit mode. */
+#reportsView{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+.dyeable-report-intro{padding:26px}.dyeable-report-intro h2,.dyeable-report-toolbar h2{margin:0;color:#173756;font-size:18px}
+.dyeable-report-intro p{font-size:13px;color:#64748b;margin:10px 0 18px}
+.dyeable-report-panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.dyeable-report-toolbar{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:18px 20px}
+.dyeable-report-toolbar p{margin:7px 0 0;font-size:12px;color:#475569}
+.dyeable-filter-summary{flex:none;padding:10px 20px;margin:0;background:#edf5fc;border-block:1px solid #d6e3ef;color:#315571;font-size:12px;line-height:1.6}
+#dyeableReportTable{flex:1;min-height:90px;max-height:none;border-bottom:1px solid #d6e3ef}
+.dyeable-table{width:100%;table-layout:fixed;font-size:12px;border-collapse:separate;border-spacing:0;background:white}
+.dyeable-table th,.dyeable-table td{padding:9px 8px;border-right:1px solid #d6e3ef;border-bottom:1px solid #d6e3ef;text-align:left;overflow-wrap:anywhere;vertical-align:middle}
+.dyeable-table th{background:#e4eef8;color:#173756;font-weight:700;line-height:1.4}
+.dyeable-table tbody tr:nth-child(even){background:#f8fbfe}.dyeable-table td.dyeable-numeric{text-align:right;font-variant-numeric:tabular-nums}
+.dyeable-table .dyeable-empty-cell{text-align:center;padding:32px;color:#64748b}
+.dyeable-report-footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 18px;font-size:11px;color:#64748b}
+.dyeable-report-note{font-size:11.5px;color:#64748b;line-height:1.6;margin:8px 18px 14px}
+.dyeable-filter-panel{width:600px}.dyeable-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.dyeable-filter-grid label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;color:#315571}
+.dyeable-filter-grid .setup-input{padding:10px 8px;font-weight:400}.dyeable-machine-field{grid-column:1/-1}
+.dyeable-filter-panel .dyeable-report-note{margin:16px 0 0}
+@media(max-width:600px){.dyeable-filter-grid{grid-template-columns:1fr}}
+@media print{#reportsView,#dyeableFiltersDialog{display:none!important}}
+
+/* Checkbox dropdowns preserve independent values within each report field. */
+.dyeable-filter-field{min-width:0;display:flex;flex-direction:column;gap:7px;font-size:12px;color:#315571;font-weight:700}
+.dyeable-multi{border:1px solid #c8d7e5;border-radius:5px;background:#fff;min-width:0}
+.dyeable-multi summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;cursor:pointer;list-style:none;font-weight:400;color:#17263b}
+.dyeable-multi summary::-webkit-details-marker{display:none}.dyeable-multi summary:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+.dyeable-multi summary [data-multi-caption]{overflow-wrap:anywhere}.dyeable-multi[open] summary{background:#f0f7fd;border-bottom:1px solid #d6e3ef}
+.dyeable-multi-options{max-height:170px;overflow:auto;padding:5px 9px}
+.dyeable-multi-options label{display:flex;flex-direction:row;align-items:flex-start;gap:8px;padding:7px 2px;line-height:1.4;font-size:12px;font-weight:400;cursor:pointer;color:#17263b;overflow-wrap:anywhere}
+.dyeable-multi-options label:first-child{border-bottom:1px solid #d6e3ef;font-weight:700}.dyeable-multi-options input{flex:none;margin:2px 0 0;accent-color:#2563a6}
+.dyeable-summary-panel{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.dyeable-summary-scroll{flex:1;min-height:0;overflow:auto;padding:16px;background:#edf2f7}
+#dyeableSummaryPaper{min-width:820px;background:#fff;padding:0 0 14px;border:1px solid #bdcbd8;box-shadow:0 2px 9px #0f172a12}
+#dyeableSummaryPaper>h2{margin:0;background:#bfe6f1;border:1px solid #1f2937;text-align:center;padding:10px 12px;font-size:25px;line-height:1.25;color:#000}
+.summary-filter-line{padding:8px 12px;margin:0;font-size:11px;color:#475569;line-height:1.6;border-bottom:1px solid #d7dfe7}
+.dyeable-summary-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;color:#000;background:#fff}
+.dyeable-summary-table th,.dyeable-summary-table td{border:1px solid #d0d0d0;padding:6px 7px;line-height:1.3;overflow-wrap:anywhere;text-align:left}
+.dyeable-summary-table thead th{text-align:center;background:#dcefd2;font-weight:700}
+.dyeable-summary-table thead .summary-criteria{background:#fff;text-align:left}
+.dyeable-summary-table thead .summary-category-0{background:#92d050}.dyeable-summary-table thead .summary-category-1{background:#ffc000}.dyeable-summary-table thead .summary-category-2{background:#ed7d31}
+.dyeable-summary-table td.summary-floor{text-align:center;vertical-align:middle;font-size:14px}.dyeable-summary-table .summary-number{text-align:right;font-variant-numeric:tabular-nums}
+.dyeable-summary-table .summary-floor-total th,.dyeable-summary-table .summary-floor-total td{font-weight:700;background:#fbe3d6}
+.summary-footer{display:flex;gap:16px;justify-content:space-between;align-items:flex-end;padding:24px 8px 0;font-size:11px;color:#000}
+#dyeableSummaryNotes{margin:12px 10px 0;font-size:11px}
+@media print{
+  body.printing-dyeable-summary #reportContainer,body.printing-dyeable-summary #batchCardView,body.printing-dyeable-summary #batchPlanListView,body.printing-dyeable-summary #setupView,body.printing-dyeable-summary #uploaderView,body.printing-dyeable-summary #dyeableReportPanel,body.printing-dyeable-summary #dyeableReportEmpty{display:none!important}
+  body.printing-dyeable-summary #reportsView,body.printing-dyeable-summary #dyeableSummaryPanel{display:block!important;height:auto;min-height:0;overflow:visible;box-shadow:none;border:0;margin:0}
+  body.printing-dyeable-summary #dyeableSummaryPanel>.dyeable-report-toolbar,body.printing-dyeable-summary #dyeableSummaryExportStatus{display:none!important}
+  body.printing-dyeable-summary .dyeable-summary-scroll{display:block;overflow:visible;padding:0;background:white}
+  body.printing-dyeable-summary #dyeableSummaryPaper{min-width:0;width:100%;padding:0;border:0;box-shadow:none}
+  body.printing-dyeable-summary #dyeableSummaryPaper>h2{font-size:20px;padding:7px}
+  body.printing-dyeable-summary .dyeable-summary-table{font-size:10px}
+  body.printing-dyeable-summary .dyeable-summary-table th,body.printing-dyeable-summary .dyeable-summary-table td{padding:4px 5px}
+  body.printing-dyeable-summary .summary-footer{font-size:10px;break-inside:avoid}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <div>Textile Planning<br><span style="font-size:12px;font-weight:400;color:#94a3b8">Solution ERP</span></div>
+    </div>
+
+    <div class="user-profile">
+      <div class="user-avatar">SA</div>
+      <div>
+        <div id="currentUsername" style="font-weight:700;color:#f1f5f9">Shimul (Admin)</div>
+        <div style="font-size:11px;color:#7e9bb9">Merchandising &amp; PPC</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Data Management</div>
+    <div class="nav-item" id="navUpload">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Source File Upload
+    </div>
+
+    <div class="nav-item" id="navSetup">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="4"/></svg>
+      Setup
+    </div>
+
+    <div class="floor-submenus" aria-label="Setup submenus">
+      <button class="nav-floor" id="navDyeingMC">Dyeing MC</button>
+      <button class="nav-floor" id="navFlatAllowance">Flat Allowance</button><button class="nav-floor" id="navUnitSetup">Unit Setup</button>
+    </div>
+    <div class="nav-label">Order Management</div>
+    <div class="nav-item active" id="navBatch">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Batch Plan
+    </div>
+    <div class="floor-submenus" id="floorSubmenus" aria-label="Batch Plan floors">
+      <button class="nav-floor" data-floor="EFL">EFL Floor <span data-floor-count="EFL">0</span></button>
+      <button class="nav-floor" data-floor="EKL">EKL Floor <span data-floor-count="EKL">0</span></button>
+      <button class="nav-floor" data-floor="EXT">Ext Floor <span data-floor-count="EXT">0</span></button>
+      <button class="nav-floor" data-floor="PLUVIA">Pluvia Wash <span data-floor-count="PLUVIA">0</span></button>
+      <button class="nav-floor" data-floor="OUTSIDE">Outside Dyeing <span data-floor-count="OUTSIDE">0</span></button>
+    </div>
+    <div class="nav-item" id="navBatchCard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="3" width="16" height="18"/><path d="M8 8h8M8 12h8M8 16h8"/></svg>Batch Card</div>
+    <div class="floor-submenus" id="cardFloorSubmenus" aria-label="Batch Card floors">
+      <button class="nav-floor" data-card-floor="EFL">EFL Floor <span data-card-floor-count="EFL">0</span></button>
+      <button class="nav-floor" data-card-floor="EKL">EKL Floor <span data-card-floor-count="EKL">0</span></button>
+      <button class="nav-floor" data-card-floor="EXT">Ext Floor <span data-card-floor-count="EXT">0</span></button>
+      <button class="nav-floor" data-card-floor="PLUVIA">Pluvia Wash <span data-card-floor-count="PLUVIA">0</span></button>
+      <button class="nav-floor" data-card-floor="OUTSIDE">Outside Dyeing <span data-card-floor-count="OUTSIDE">0</span></button>
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Knitting Plan
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/></svg>
+      Dyeing Plan
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Finishing Plan
+    </div>
+    <div class="nav-label">Reports</div>
+    <div class="nav-item" id="navReport"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h5"/></svg>Report</div>
+    <div class="floor-submenus" aria-label="Report submenus"><button class="nav-floor" id="navDyeableBatch">Dyeable Batch</button><button class="nav-floor" id="navDyeableSummary">Dyeable Batch Summary</button><button class="nav-floor" id="navDailyConfirm">Daily Confirm Batch Plan</button></div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <main class="main">
+    <header class="top-header">
+      <div>
+        <div class="eyebrow" id="viewEyebrow">Planning &amp; Production Info</div>
+        <h1 id="viewTitle">Batch Plan Generation</h1>
+      </div>
+      <span class="badge" id="viewBadge">
+        <span class="badge-dot"></span>
+        <span id="viewBadgeText">Ready</span>
+      </span>
+    </header>
+
+    <div id="batchPlanListView">
+      <div class="card">
+        <!-- TOP STATUS TABS & GLOBAL SEARCH -->
+        <div class="batch-filter-bar">
+          <div class="status-tabs">
+            <button class="status-btn active" data-status="Pending" id="btnTabPending">
+              PENDING LIST <span class="status-count" id="countPending">0</span>
+            </button>
+            <button class="status-btn" data-status="Confirm" id="btnTabConfirm">
+              CONFIRM LIST <span class="status-count" id="countConfirm">0</span>
+            </button>
+            <button class="status-btn" data-status="Tentative" id="btnTabTentative">
+              TENTATIVE LIST <span class="status-count" id="countTentative">0</span>
+            </button>
+            <button class="status-btn" data-status="NeedReconfirm" id="btnTabNeedReconfirm">
+              NEED RE-CONFIRM LIST <span class="status-count" id="countNeedReconfirm">0</span>
+            </button>
+          </div>
+
+          <div class="search-box-top">
+            <div class="search-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="globalSearchInput" class="search-input-top" placeholder="Search Booking No...">
+            </div>
+            <button class="btn-search-action" id="btnRunSearch">Search</button>
+            <button class="btn-clear" id="btnClearSearch" title="Clear search">✕</button>
+          </div>
+        </div>
+
+        <!-- HORIZONTAL BUYER FILTER CAROUSEL -->
+        <div class="buyer-carousel-wrap">
+          <button class="carousel-btn" id="btnScrollBuyerLeft" title="Scroll left">◀</button>
+          <div class="buyer-pills-container" id="buyerPillsContainer">
+            <button class="buyer-btn active" data-buyer="ALL">ALL BUYERS</button>
+            <button class="buyer-btn" data-buyer="AUSTRALIAN OPEN">AUSTRALIAN OPEN</button>
+            <button class="buyer-btn" data-buyer="BESTSELLER">BESTSELLER</button>
+            <button class="buyer-btn" data-buyer="BONDS">BONDS</button>
+            <button class="buyer-btn" data-buyer="C&A">C&amp;A</button>
+            <button class="buyer-btn" data-buyer="CALVIN KLEIN JEANS">CALVIN KLEIN JEANS</button>
+            <button class="buyer-btn" data-buyer="CARHARTT">CARHARTT</button>
+            <button class="buyer-btn" data-buyer="CHAMPION AUSTRALIA">CHAMPION AUSTRALIA</button>
+            <button class="buyer-btn" data-buyer="COUNTRY ROAD">COUNTRY ROAD</button>
+            <button class="buyer-btn" data-buyer="G-STAR">G-STAR</button>
+            <button class="buyer-btn" data-buyer="J.CREW">J.CREW</button>
+            <button class="buyer-btn" data-buyer="KLATTERMUSEN AB">KLATTERMUSEN AB</button>
+            <button class="buyer-btn" data-buyer="M&S">M&amp;S</button>
+            <button class="buyer-btn" data-buyer="STANLEY STELLA">STANLEY STELLA</button>
+            <button class="buyer-btn" data-buyer="TOMMY HILFIGER">TOMMY HILFIGER</button>
+            <button class="buyer-btn" data-buyer="TOMMY JEANS">TOMMY JEANS</button>
+            <button class="buyer-btn" data-buyer="VOGUE SOURCING LIMITED">VOGUE SOURCING LIMITED</button>
+          </div>
+          <button class="carousel-btn" id="btnScrollBuyerRight" title="Scroll right">▶</button>
+        </div>
+
+        <div id="floorScopeNote" class="floor-scope-note">All orders</div>
+        <!-- Saved lists include user/date audit columns; headings remain frozen. -->
+        <div class="table-wrap freeze-pane" id="registerScrollPane" tabindex="0" aria-label="Batch Plan orders">
+          <table class="register-table">
+            <colgroup id="registerColumns">
+              <col class="col-manage">
+              <col class="col-order">
+              <col class="col-date">
+              <col class="col-buyer">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Manage</th>
+                <th>Order/Booking No.</th>
+                <th>Booking Date</th>
+                <th>Buyer</th>
+                <th id="registerSavedByHeading" class="saved-list-column hidden">Tentative By</th>
+                <th class="saved-list-column hidden">Last Save</th>
+                <th class="reconfirm-list-column hidden">Latest YB Revised No</th>
+                <th class="reconfirm-list-column hidden">Confirmed BP Revised No</th>
+              </tr>
+              <tr class="filter-row">
+                <th></th>
+                <th><input type="text" id="colSearchOrder" class="col-search-input" placeholder="Search No..."></th>
+                <th><input type="text" id="colSearchDate" class="col-search-input" placeholder="Search Date..."></th>
+                <th><input type="text" id="colSearchBuyer" class="col-search-input" placeholder="Search Buyer..."></th>
+                <th class="saved-list-column hidden"></th>
+                <th class="saved-list-column hidden"></th>
+                <th class="reconfirm-list-column hidden"></th>
+                <th class="reconfirm-list-column hidden"></th>
+              </tr>
+            </thead>
+            <tbody id="batchRegisterRows"></tbody>
+          </table>
+        </div>
+        <div id="tableEmptyState" class="empty-state hidden">No matching bookings found in this list.</div>
+        <div class="pagination-bar">
+          <label for="registerPageSize">Show
+            <select id="registerPageSize" class="page-size-select">
+              <option value="10" selected>10</option><option value="20">20</option>
+              <option value="50">50</option><option value="100">100</option>
+              <option value="All">All</option>
+            </select> orders
+          </label>
+          <span id="registerResultCount">Showing 0 orders</span>
+          <div class="pagination-actions">
+            <button class="btn secondary" id="btnPreviousPage" disabled>◀ Previous</button>
+            <span id="registerPageInfo">Page 1 of 1</span>
+            <button class="btn secondary" id="btnNextPage" disabled>Next ▶</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- UPLOADER VIEW -->
+    <div id="uploaderView" class="hidden">
+      <div class="card">
+        <div class="card-head" style="padding:18px 22px;border-bottom:1px solid #e4ebf2">
+          <h2 style="margin:0;font-size:17px">☁ Upload Source Data</h2>
+          <p class="muted" style="margin:4px 0 0;font-size:12.5px;color:#64748b">
+            Upload Excel (.xlsx, .xls) files. Re-uploading an existing file name will <strong>automatically replace</strong> the previous file and refresh its data.
+          </p>
+        </div>
+        <div class="upload-box">
+          <div class="tab-pills">
+            <button type="button" class="tab-pill active" data-category="General Information & Planning">
+              General Information &amp; Planning (Sheet: General Info)
+            </button>
+            <button type="button" class="tab-pill" data-category="BP Data">
+              BP Data
+            </button>
+            <button type="button" class="tab-pill" data-category="Knitting Plan">
+              Knitting Plan (Sheet: Knitting &amp; Delivery Plan)
+            </button>
+          </div>
+          <div style="font-size:13px; margin-bottom:10px;">
+            Currently uploading for: <strong id="currentCategoryText" style="color:#1d5ab2">General Information &amp; Planning</strong>
+          </div>
+          <div class="file-bar">
+            <label class="file-btn" for="fileInput">Browse...</label>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+            <span class="file-display" id="fileNameDisplay">No file selected.</span>
+            <button class="btn" id="uploadBtn">⬆ Upload &amp; Extract Data</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILE REPOSITORY DIRECTORY TABLE -->
+      <div class="card" style="margin-top:20px">
+        <div class="card-head" style="padding:18px 22px;border-bottom:1px solid #e4ebf2">
+          <h2 style="margin:0;font-size:17px">📁 Uploaded Files Directory</h2>
+          <p class="muted" style="margin:4px 0 0;font-size:12.5px;color:#64748b">Stored in browser. Duplicate files are replaced seamlessly.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="register-table">
+            <thead>
+              <tr>
+                <th style="width:230px">File Category</th>
+                <th>File Name</th>
+                <th style="width:110px">Size</th>
+                <th style="width:140px">Uploaded By</th>
+                <th style="width:180px">Date &amp; Time</th>
+                <th style="width:100px;text-align:center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="fileTableRows"></tbody>
+          </table>
+        </div>
+        <div id="noFilesMsg" class="empty-state hidden">No uploaded files stored yet.</div>
+      </div>
+    </div>
+
+    <!-- EDITABLE MACHINE SETUP -->
+    <div id="setupView" class="hidden">
+      <div class="card" id="dyeingMCSetupPanel">
+        <div class="setup-toolbar">
+          <div>
+            <h2 style="margin:0;font-size:17px">Dyeing Machine Setup</h2>
+            <p style="margin:6px 0 0;font-size:12.5px;color:#64748b">Edit any cell or insert a new row, then click Save Changes.</p>
+          </div>
+          <div class="btn-group-actions">
+            <button class="btn success" id="btnInsertMachine">＋ Insert New Row</button>
+            <button class="btn" id="btnSaveSetup">Save Changes</button>
+          </div>
+        </div>
+        <div class="setup-status-bar">
+          <span id="setupRowCount">0 machines</span><strong id="setupSaveStatus">Saved</strong>
+        </div>
+        <div class="table-wrap freeze-pane" tabindex="0" aria-label="Dyeing machine setup">
+          <table class="setup-table">
+            <colgroup><col style="width:100px"><col style="width:95px"><col style="width:130px"><col style="width:160px"><col style="width:75px"><col style="width:100px"><col style="width:105px"><col style="width:330px"><col style="width:100px"></colgroup>
+            <thead><tr><th>Dyeing Floor</th><th>MC Type</th><th>M/C Group</th><th>MC Brand</th><th>MC No.</th><th>Capacity</th><th>Collar Cuff</th><th>Not Possible Fabric</th><th>Loading</th></tr></thead>
+            <tbody id="machineSetupRows"></tbody>
+          </table>
+        </div>
+      </div>
+    <!-- Flat Allowance setup uses its own saved record. -->
+    <div id="unitSetupPanel" class="card hidden"><div class="setup-toolbar"><h2>Unit Setup</h2><button id="btnUnitAdd" class="btn success">＋ Add Row</button></div><p><input id="unitSetupSearch" type="search" placeholder="Search buyer or unit" aria-label="Search Unit Setup"> <label><input id="unitSetupShowHidden" type="checkbox" checked> Show hidden rows</label></p><p id="unitSetupStatus" class="setup-status-bar"></p><div class="table-wrap freeze-pane"><table class="setup-table"><thead><tr><th>Buyer</th><th>Unit</th><th>Action</th></tr></thead><tbody id="unitSetupRows"></tbody></table></div></div>
+    <div id="flatAllowanceSetupPanel" class="card hidden">
+      <div class="setup-toolbar"><div><h2 style="margin:0;font-size:17px">Flat Allowance</h2><p class="component-note">Edit any row, then Save Changes. A narrower range wins when rules overlap.</p></div><div class="btn-group-actions"><button class="btn success" id="btnInsertAllowance">＋ Insert New Row</button><button class="btn" id="btnSaveAllowance">Save Changes</button></div></div>
+      <div class="setup-status-bar" id="flatAllowanceStatus">Saved</div>
+      <div class="table-wrap freeze-pane"><table class="setup-table"><thead><tr><th>Dyeing Type</th><th>Flat Knit Type</th><th>Qty Range (Pcs)</th><th>Process Loss</th></tr></thead><tbody id="flatAllowanceRows"></tbody></table></div>
+    </div>
+    </div>
+
+    <div id="batchCardView" class="hidden">
+      <div id="cardRegisterPanel" class="card"><div class="batch-filter-bar"><div class="status-tabs">
+        <button class="status-btn active" data-card-status="Pending">PENDING LIST <span class="status-count" id="cardCountPending">0</span></button>
+        <button class="status-btn" data-card-status="Partial">PARTIAL LIST <span class="status-count" id="cardCountPartial">0</span></button>
+        <button class="status-btn" data-card-status="Completed">COMPLETED LIST <span class="status-count" id="cardCountCompleted">0</span></button>
+        <button class="status-btn" data-card-status="Revision">REVISION PENDING LIST <span class="status-count" id="cardCountRevision">0</span></button>
+      </div><input class="col-search-input card-search" id="cardSearch" placeholder="Search order, buyer or batch…" aria-label="Search batch cards"></div>
+      <p class="floor-scope-note" id="cardScopeLabel"></p><div class="freeze-pane" id="cardRegisterTable"></div>
+      <div class="pagination-bar"><label>Show <select id="cardPageSize"><option>10</option><option>20</option><option>50</option><option>100</option><option>All</option></select></label><span id="cardPageInfo"></span><button class="btn secondary" id="cardPrevious">Previous</button><button class="btn secondary" id="cardNext">Next</button></div></div>
+      <div id="cardOrderPanel" class="card hidden"><div class="card-view-toolbar"><button class="btn secondary" id="btnCardOrderBack">← Back to Lists</button></div><div id="cardOrderContent"></div></div>
+      <div id="cardPreviewPanel" class="hidden"><div class="card-view-toolbar"><button class="btn secondary" id="btnCardBack">← Back to Lists</button><span id="cardRevisionNotice"></span><span id="cardRevisionActions"></span><button class="btn" id="btnPrintBatchCard">Print / Save PDF</button></div><div id="batchCardPrintView"></div></div>
+    </div>
+    <div id="reportsView" class="hidden">
+      <div id="dailyConfirmPanel" class="card hidden"><div class="dyeable-report-toolbar"><div><h2>Daily Confirm Batch Plan</h2><p id="dailyConfirmCount"></p></div><div class="btn-group-actions"><button id="btnDailyConfirmFilters" class="btn secondary">Change Filters / Refresh</button><button id="dailyConfirmExport" class="btn success">Download Excel</button><button id="dailyConfirmPrint" class="btn">Print / Save PDF</button></div></div><p id="dailyConfirmCriteria" class="dyeable-filter-summary"></p><div id="dailyConfirmTable" class="freeze-pane"></div><p id="dailyConfirmNotes" class="component-note"></p><p id="dailyConfirmAsOf" class="component-note"></p></div>
+      <div id="dyeableReportEmpty" class="card dyeable-report-intro"><h2>Dyeable Batch</h2><p>Preview confirmed Colour &amp; Batch Info with the latest knitting production status.</p><button class="btn" id="btnDyeableOpen">Dyeable Batch · Filters &amp; Preview</button> <button class="btn secondary" id="btnDyeableSummaryOpen">Dyeable Batch Summary</button> <button class="btn secondary" id="btnDailyConfirmOpen">Daily Confirm Batch Plan</button></div>
+      <div id="dyeableReportPanel" class="card dyeable-report-panel hidden">
+        <div class="dyeable-report-toolbar"><div><h2>Dyeable Batch</h2><p id="dyeableReportCount"></p></div><div class="btn-group-actions"><button class="btn secondary" id="btnDyeableFilters">Change Filters / Refresh</button><button class="btn success" id="btnDownloadDyeable">Download Excel</button></div></div>
+        <p id="dyeableReportFilterSummary" class="dyeable-filter-summary"></p>
+        <p id="dyeableReportWarnings" class="batch-calculation-note hidden"></p>
+        <div id="dyeableReportTable" class="freeze-pane" tabindex="0" aria-label="Dyeable Batch report"></div>
+        <div class="dyeable-report-footer"><span id="dyeableReportAsOf"></span><span id="dyeableExportStatus" role="status"></span></div>
+        <p class="dyeable-report-note">Knit Status is allocated in saved batch order before filtering. “Not Knit ok” includes missing production or fabric quantities. Fabric numbers follow each order’s Fabric Info; hover over a quantity for its fabric and GSM.</p>
+      </div>
+      <div id="dyeableSummaryPanel" class="card dyeable-summary-panel hidden">
+        <div class="dyeable-report-toolbar"><h2>Dyeable Batch Summary</h2><div class="btn-group-actions"><button class="btn secondary" id="btnDyeableSummaryFilters">Change Filters / Refresh</button><button class="btn success" id="btnDownloadDyeableSummary">Download Excel</button><button class="btn" id="btnPrintDyeableSummary">Print / Save PDF</button></div></div>
+        <div class="dyeable-summary-scroll"><article id="dyeableSummaryPaper">
+          <h2>Dyeable Live Batch Status</h2><p id="dyeableSummaryCriteria" class="summary-filter-line"></p>
+          <div id="dyeableSummaryTable"></div><p id="dyeableSummaryNotes" class="dyeable-report-note hidden"></p>
+          <footer class="summary-footer"><span id="dyeableSummaryTimestamp"></span><span>This is the PMC internal ERP System Generated Report</span></footer>
+        </article></div><p id="dyeableSummaryExportStatus" class="dyeable-report-note" role="status"></p>
+      </div>
+    </div>
+    <!-- REPORT VIEW -->
+    <div id="reportContainer" class="hidden">
+      <div class="report-toolbar">
+        <button class="btn secondary" id="btnBackToList">← Back to List</button>
+        <div class="btn-group-actions">
+          <button class="btn warning hidden" id="btnInternalChange">Internal change</button>
+          <button class="btn secondary" id="btnMovePending" title="Revert to Pending">Move to Pending</button>
+          <button class="btn warning" id="btnMakeTentative">Make Tentative</button>
+          <button class="btn success" id="btnMakeConfirm">Confirm Batch Plan</button>
+          <button class="btn secondary" id="btnViewBatchPlan">View Batch Plan</button>
+          <button class="btn" id="btnPrintReport">Print / Save PDF</button>
+        </div>
+      </div>
+      <article id="reportContent" class="report card" aria-live="polite"></article>
+    </div>
+  </main>
+</div>
+
+<!-- Report criteria only; previewing and downloading never modify bookings. -->
+<div id="dyeableFiltersDialog" class="tentative-overlay hidden" aria-hidden="true">
+  <form id="dyeableFiltersForm" class="tentative-panel dyeable-filter-panel" role="dialog" aria-modal="true" aria-labelledby="dyeableFiltersTitle">
+    <h3 id="dyeableFiltersTitle">Dyeable Batch · Report Filters</h3>
+    <p class="tentative-context">Confirmed batch plans with current Knit Status. Check multiple options; filters combine across fields.</p>
+    <div class="dyeable-filter-grid">
+      <div class="dyeable-filter-field"><span id="dyeableKnitLabel">Knit Status</span><details id="dyeableKnit" class="dyeable-multi"><summary aria-labelledby="dyeableKnitLabel"><span data-multi-caption>All</span><span aria-hidden="true">▾</span></summary><div class="dyeable-multi-options" role="group" aria-label="Knit Status options"></div></details></div>
+      <div class="dyeable-filter-field"><span id="dyeableLabdipLabel">Labdip</span><details id="dyeableLabdip" class="dyeable-multi"><summary aria-labelledby="dyeableLabdipLabel"><span data-multi-caption>All</span><span aria-hidden="true">▾</span></summary><div class="dyeable-multi-options" role="group" aria-label="Labdip options"></div></details></div>
+      <div class="dyeable-filter-field"><span id="dyeableBuyerLabel">Buyer</span><details id="dyeableBuyer" class="dyeable-multi"><summary aria-labelledby="dyeableBuyerLabel"><span data-multi-caption>All</span><span aria-hidden="true">▾</span></summary><div class="dyeable-multi-options" role="group" aria-label="Buyer options"></div></details></div>
+      <div class="dyeable-filter-field"><span id="dyeableFloorLabel">Floor</span><details id="dyeableFloor" class="dyeable-multi"><summary aria-labelledby="dyeableFloorLabel"><span data-multi-caption>All</span><span aria-hidden="true">▾</span></summary><div class="dyeable-multi-options" role="group" aria-label="Floor options"></div></details></div>
+      <div class="dyeable-filter-field dyeable-machine-field"><span id="dyeableMachineLabel">MC Number</span><details id="dyeableMachine" class="dyeable-multi"><summary aria-labelledby="dyeableMachineLabel"><span data-multi-caption>All</span><span aria-hidden="true">▾</span></summary><div class="dyeable-multi-options" role="group" aria-label="MC Number options"></div></details></div>
+    </div>
+    <p class="dyeable-report-note">Labdip is Yes when the saved batch has a Lapdip Number. “Knit ok but need check CC Prod.” is included in Knit ok.</p>
+    <p id="dyeableFilterError" class="tentative-error" role="alert"></p>
+    <div class="tentative-actions"><button type="button" class="btn secondary" id="btnCancelDyeableFilters">Cancel</button><button type="submit" class="btn" id="btnPreviewDyeable">Preview Report</button></div>
+  </form>
+</div>
+
+<!-- Read-only, zoomable report. Print keeps the existing saved-PDF layout. -->
+<div id="batchPlanPreviewDialog" class="batch-plan-preview-overlay hidden" aria-hidden="true">
+  <div class="batch-plan-preview-panel" role="dialog" aria-modal="true" aria-labelledby="batchPlanPreviewTitle">
+    <div class="batch-plan-preview-toolbar">
+      <div><h3 id="batchPlanPreviewTitle">Batch Plan · Full View</h3><p id="batchPlanPreviewContext"></p></div>
+      <div class="batch-plan-preview-controls" role="group" aria-label="Batch plan zoom controls">
+        <button class="btn secondary" id="btnPreviewZoomOut" aria-label="Zoom out">−</button><output id="batchPlanPreviewZoom" aria-live="polite">100%</output><button class="btn secondary" id="btnPreviewZoomIn" aria-label="Zoom in">＋</button>
+        <button class="btn secondary" id="btnPreviewFitWidth">Fit width</button><button class="btn secondary" id="btnPreviewFitPage">Fit page</button><button class="btn secondary" id="btnPreviewActualSize">100%</button>
+        <button class="btn" id="btnPreviewPrint">Print / Save PDF</button><button class="btn secondary" id="btnCloseBatchPlanPreview">Close ✕</button>
+      </div>
+    </div>
+    <div id="batchPlanPreviewViewport" class="batch-plan-preview-viewport" tabindex="0" aria-label="Full batch plan; scroll to view all rows and columns"><div id="batchPlanPreviewPaper" class="batch-plan-preview-paper"></div></div>
+  </div>
+</div>
+
+<!-- FABRIC CHECKBOX SELECTOR: OK changes the draft; Save Changes persists it. -->
+<div id="fabricPickerDialog" class="fabric-picker-overlay hidden">
+  <div class="fabric-picker-panel" role="dialog" aria-modal="true" aria-labelledby="fabricPickerTitle">
+    <h3 id="fabricPickerTitle">Not Possible Fabric</h3>
+    <p class="fabric-rule-help">Check a fabric to block it at every GSM. When unchecked, only that fabric’s GSM limit applies. Blank GSM adds no restriction; equal GSM is allowed.</p>
+    <p id="fabricPickerMigration" class="fabric-rule-help hidden"></p>
+    <input type="search" id="fabricPickerSearch" class="setup-input" placeholder="Search fabrics…" aria-label="Search fabrics">
+    <label class="fabric-choice fabric-select-all"><input type="checkbox" id="fabricPickerSelectAll">(Select All Fabrics)</label>
+    <div class="fabric-rule-heading"><span>Not Possible Fabric<br><small>Checked = blocked at every GSM</small></span><span>Not Possible GSM<br>(Greater than)</span></div>
+    <div id="fabricPickerChoices" class="fabric-picker-choices"></div>
+    <p id="fabricPickerError" class="fabric-rule-error" role="alert"></p>
+    <div class="fabric-picker-footer"><span id="fabricPickerCount">0 selected</span>
+      <button class="btn" id="btnFabricPickerOK">OK</button><button class="btn secondary" id="btnFabricPickerCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Machine evaluations are hidden until the report button is clicked. -->
+<div id="machineEvaluationDialog" class="machine-evaluation-overlay hidden" aria-hidden="true">
+  <div class="machine-evaluation-popup" role="dialog" aria-modal="true" aria-labelledby="machineEvaluationTitle">
+    <div class="machine-popup-header"><h3 id="machineEvaluationTitle">Machine Selection Evaluation</h3>
+      <button type="button" class="btn secondary" id="btnCloseMachineEvaluation">Close ✕</button>
+    </div>
+    <div class="machine-popup-controls"><label>Colour: <select id="machineEvaluationColour" aria-label="Colour for machine evaluation"></select></label>
+      <p>Green: applied machine. Blue: algorithm recommendation. Load MC applies this colour's choice. Draft choices are retained when the booking is saved as Tentative or Confirmed.</p>
+    </div>
+    <div id="machineEvaluationRows" class="machine-popup-table"></div>
+    <p id="machineEvaluationStatus" class="machine-popup-status" role="status"></p>
+  </div>
+</div>
+
+<div id="tallBigDeclarationDialog" class="machine-evaluation-overlay hidden" aria-hidden="true">
+  <section class="machine-evaluation-popup tall-big-popup" role="dialog" aria-modal="true" aria-labelledby="tallBigDeclarationTitle">
+    <div class="machine-popup-header"><h3 id="tallBigDeclarationTitle">Declare Tall/Big sizes</h3><button type="button" class="btn secondary" id="btnCloseTallBigDeclaration">Cancel ✕</button></div>
+    <div class="machine-popup-controls"><label>Colour: <select id="tallBigDeclarationColour" aria-label="Colour for Tall/Big size declaration"></select></label>
+      <div class="tall-big-steps"><span id="tallBigStepTall">1. Tall quantities</span><span>→</span><span id="tallBigStepBig">2. Big quantities</span></div>
+      <p id="tallBigDeclarationBatches"></p><p id="tallBigDeclarationHelp">Enter final planned whole pieces, including Flat Allowance. Tall and Big pieces are deducted first; the remaining pieces use this colour’s No batches. Multiple batches of the same type share its pieces equally, with whole-piece remainders.</p>
+    </div>
+    <div id="tallBigDeclarationRows" class="machine-popup-table"></div>
+    <p id="tallBigDeclarationError" class="machine-popup-status tentative-error" role="alert"></p>
+    <div class="tentative-actions"><button type="button" class="btn secondary" id="btnTallBigPrevious">← Tall</button><button type="button" class="btn" id="btnTallBigNext">Next: Big →</button><button type="button" class="btn success hidden" id="btnSaveTallBigDeclaration">Save Quantities</button></div>
+  </section>
+</div>
+
+<!-- Tentative answers are committed atomically with the booking. Cancel keeps the draft. -->
+<div id="tentativeQuestionnaire" class="tentative-overlay hidden" aria-hidden="true">
+  <form id="tentativeQuestionnaireForm" class="tentative-panel" role="dialog" aria-modal="true" aria-labelledby="tentativeTitle" novalidate>
+    <h3 id="tentativeTitle">Save as Tentative</h3>
+    <p id="tentativeContext" class="tentative-context"></p>
+    <fieldset><legend>A. Is the lab dip approved?</legend><div class="tentative-options">
+      <label><input type="radio" name="labDip" value="Yes" required>Yes</label>
+      <label><input type="radio" name="labDip" value="No" required>No</label>
+    </div></fieldset>
+    <fieldset><legend>B. Is the booking on hold?</legend><div class="tentative-options">
+      <label><input type="radio" name="bookingHold" value="Yes" required>Yes</label>
+      <label><input type="radio" name="bookingHold" value="No" required>No</label>
+    </div></fieldset>
+    <fieldset><legend>C. Is final production confirmation completed?</legend><div class="tentative-options">
+      <label><input type="radio" name="productionConfirmed" value="Yes" required>Yes</label>
+      <label><input type="radio" name="productionConfirmed" value="No" required>No</label>
+    </div></fieldset>
+    <label class="tentative-other-label" for="tentativeOthers">D. Others (optional)</label>
+    <textarea id="tentativeOthers" placeholder="Enter any other reason or comment…"></textarea>
+    <p id="tentativeQuestionnaireError" class="tentative-error" role="alert"></p>
+    <div class="tentative-actions"><button type="button" id="btnCancelTentative" class="btn secondary">Cancel</button>
+      <button type="submit" id="btnSaveTentative" class="btn warning">Save Tentative</button></div>
+  </form>
+</div>
+
+<!-- Re-confirmation saves latest reviewed data with an explicit BP revision choice. -->
+<div id="reconfirmRevisionDialog" class="tentative-overlay hidden" aria-hidden="true">
+  <section class="tentative-panel reconfirm-revision-panel" role="dialog" aria-modal="true" aria-labelledby="reconfirmRevisionTitle" aria-describedby="reconfirmRevisionHelp">
+    <h3 id="reconfirmRevisionTitle">Do you want to change the current batch plan?</h3>
+    <p id="reconfirmRevisionContext" class="tentative-context"></p>
+    <p id="reconfirmRevisionCurrent"></p>
+    <p id="reconfirmRevisionHelp">Yes saves the revised data and advances the batch plan revision. No keeps the previously confirmed data and revision unchanged; revised data stays in Need Re-Confirm List.</p>
+    <div class="reconfirm-revision-choices">
+      <button id="btnReconfirmYes" class="btn success" type="button"><strong>Yes (The revision number will change)</strong><span id="reconfirmRevisionYesPreview"></span></button>
+      <button id="btnReconfirmNo" class="btn secondary" type="button"><strong>No (The revision number will remain unchanged)</strong><span id="reconfirmRevisionNoPreview"></span></button>
+    </div>
+    <p id="reconfirmRevisionError" class="tentative-error" role="alert"></p>
+    <div class="tentative-actions"><button id="btnCancelReconfirm" class="btn secondary" type="button">Cancel</button></div>
+  </section>
+</div>
+
+<div id="internalChangeDialog" class="tentative-overlay hidden" aria-hidden="true">
+  <section class="tentative-panel" role="dialog" aria-modal="true" aria-labelledby="internalChangeTitle" aria-describedby="internalChangeHelp">
+    <h3 id="internalChangeTitle">Do you want to change this batch plan?</h3>
+    <p id="internalChangeContext" class="tentative-context"></p>
+    <p id="internalChangeHelp">Yes approves all staged internal edits and keeps the revision number. No discards these edits and returns to the Confirm List.</p>
+    <p id="internalChangeError" class="tentative-error" role="alert"></p>
+    <div class="tentative-actions"><button id="btnInternalChangeNo" class="btn secondary" type="button">No</button><button id="btnInternalChangeYes" class="btn success" type="button">Yes</button></div>
+  </section>
+</div>
+
+<div id="confirmChecksDialog" class="tentative-overlay hidden" aria-hidden="true">
+  <section class="tentative-panel" role="dialog" aria-modal="true" aria-labelledby="confirmChecksTitle">
+    <h3 id="confirmChecksTitle">Are Lapdip, Reference, and Additional Process correct?</h3>
+    <div class="tentative-actions"><button id="btnConfirmChecksYes" class="btn success" type="button">Yes, Proceed</button><button id="btnConfirmChecksNo" class="btn secondary" type="button">No, Cancel</button></div>
+  </section>
+</div>
+<style>@media print{#confirmChecksDialog{display:none!important}}</style>
+
+<div id="odDeclarationDialog" class="tentative-overlay hidden" aria-hidden="true"><section class="tentative-panel" style="width:1000px" role="dialog" aria-modal="true" aria-labelledby="odDeclarationTitle"><h3 id="odDeclarationTitle">Semi Bleach / RFD OD BP</h3><div id="odDeclarationTotals"></div><p><label>No of batch <select id="odBatchCount" aria-label="Number of OD batches"></select></label></p><div id="odDeclarationPreview"></div><p id="odDeclarationError" class="tentative-error" role="alert"></p><div class="tentative-actions"><button id="btnODSave" class="btn success" type="button">OK</button><button id="btnODCancel" class="btn secondary" type="button">Cancel</button></div></section></div><style>@media print{#odDeclarationDialog,.od-bp-control{display:none!important}}</style>
+<div id="dailyConfirmFilters" class="tentative-overlay hidden" aria-hidden="true"><section class="tentative-panel" role="dialog" aria-modal="true" aria-labelledby="dailyConfirmFiltersTitle"><h3 id="dailyConfirmFiltersTitle">Daily Confirm Batch Plan · Report Filters</h3><form id="dailyConfirmForm"><p><label>From <input id="dailyConfirmFrom" type="date" required></label> <label>To <input id="dailyConfirmTo" type="date" required></label></p><p><label>Confirmation route <select id="dailyConfirmRoute"></select></label></p><p><label>Floor <select id="dailyConfirmFloor"></select></label></p><p><label>Buyer <select id="dailyConfirmBuyer"></select></label></p><p id="dailyConfirmError" class="tentative-error" role="alert"></p><div class="tentative-actions"><button class="btn success" type="submit">Preview Report</button><button id="btnDailyConfirmCancel" class="btn secondary" type="button">Cancel</button></div></form></section></div>
+<style>@media print{#dailyConfirmFilters{display:none!important}body.printing-daily-confirm #reportsView{display:block!important}body.printing-daily-confirm #reportContainer,body.printing-daily-confirm #reportsView>:not(#dailyConfirmPanel){display:none!important}body.printing-daily-confirm #dailyConfirmPanel{display:block!important;border:0;box-shadow:none}body.printing-daily-confirm #dailyConfirmPanel .btn-group-actions{display:none!important}body.printing-daily-confirm #dailyConfirmTable{max-height:none;overflow:visible}body.printing-daily-confirm #dailyConfirmTable table{min-width:0;width:100%;font-size:10px}}</style>
+<!-- FLOATING TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/batch/batch-api.js"></script>
+<script src="js/batch/batch-app.js"></script>
+</body>
+</html>

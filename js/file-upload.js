@@ -18,7 +18,11 @@ async function handleExcelUpload() {
             markDataDirty(); // Invalidate caches so next load fetches fresh data
             loadUploadedFiles();
             if (activeTabId !== 'dashboard' && activeTabId !== 'dataManagement') fetchAndProcessData();
-        } else { alert("Upload error"); }
+        } else {
+            let message = "Upload error";
+            try { const data = await res.json(); if (data && data.message) message = data.message; } catch (e) {}
+            alert(message);
+        }
     } catch (e) { alert("Server error"); }
 }
 

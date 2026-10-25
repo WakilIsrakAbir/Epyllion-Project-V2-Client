@@ -1,0 +1,31 @@
+/* Batch Plan module page (batch.html) — project integration styles.
+   Navigation lives in the project sidebar, so the demo's own sidebar is hidden.
+   Buttons are hidden when the user lacks the matching permission; the server
+   checks the same permissions on every save. */
+.sidebar { display: none !important; }
+.app { min-height: 100vh; }
+
+body.perm-no-tentative #btnMakeTentative,
+body.perm-no-confirm #btnMakeConfirm,
+body.perm-no-pending #btnMovePending,
+body.perm-no-internal #btnInternalChange,
+body.perm-no-edit .report-add-row,
+body.perm-no-edit [data-report-row-action],
+body.perm-no-edit [data-general-action],
+body.perm-no-edit .load-mc-button,
+body.perm-no-card [data-card-generate],
+body.perm-no-card [data-card-retire],
+body.perm-no-dyeingmc #btnInsertMachine,
+body.perm-no-dyeingmc #btnSaveSetup,
+body.perm-no-flat #btnInsertAllowance,
+body.perm-no-flat #btnSaveAllowance,
+body.perm-no-unit #btnUnitAdd,
+body.perm-no-unit [data-unit-action],
+body.perm-no-plan-print #btnPrintReport,
+body.perm-no-plan-print #btnPreviewPrint,
+body.perm-no-card-print #btnPrintBatchCard,
+body.perm-no-dyeable-excel #btnDownloadDyeable,
+body.perm-no-summary-excel #btnDownloadDyeableSummary,
+body.perm-no-summary-excel #btnPrintDyeableSummary,
+body.perm-no-daily-excel #dailyConfirmExport,
+body.perm-no-daily-excel #dailyConfirmPrint { display: none !important; }

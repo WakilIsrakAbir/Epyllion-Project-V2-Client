@@ -685,16 +685,32 @@
                         </div>
                         <i class="fas fa-chevron-left text-[10px] transition-transform duration-200"></i>
                     </div>
-                    <ul class="bg-sidebarDark hidden max-h-80 overflow-y-auto custom-scrollbar" id="dataManagementMenu">
+                    <ul class="bg-sidebarDark hidden" id="dataManagementMenu">
                         <li>
                             <a href="#" id="menu-data-mgmt"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="showDataManagementView()">Source File Upload</a>
                         </li>
-                        <li>
-                            <a href="#" id="menu-setup-dropdowns"
-                                class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
-                                onclick="showSetupView()">Setup</a>
+                        <li id="sidebarSetupGroup">
+                            <div class="py-2 pl-11 pr-4 flex justify-between items-center text-black cursor-pointer hover:bg-sidebarHover transition-colors"
+                                onclick="toggleSubmenu(this, 'setupSubmenu')">
+                                <span>Setup</span>
+                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200"></i>
+                            </div>
+                            <ul class="hidden" id="setupSubmenu">
+                                <li>
+                                    <a href="#" id="menu-setup-dropdowns"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showSetupView()">Dropdown Master Setup</a>
+                                </li>
+                                <!-- Batch Plan module Setup pages (additive) -->
+                                <li><a href="#" id="menu-batch-setup-dyeing" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('setup/dyeing')">Dyeing MC</a></li>
+                                <li><a href="#" id="menu-batch-setup-flat" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('setup/flat')">Flat Allowance</a></li>
+                                <li><a href="#" id="menu-batch-setup-unit" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('setup/unit')">Unit Setup</a></li>
+                            </ul>
                         </li>
                     </ul>
                 </li>
@@ -706,7 +722,7 @@
                                 class="ml-2">Order Management</span></div>
                         <i class="fas fa-chevron-left text-[10px] transition-transform duration-200"></i>
                     </div>
-                    <ul class="bg-sidebarDark hidden max-h-80 overflow-y-auto custom-scrollbar" id="orderMenu">
+                    <ul class="bg-sidebarDark hidden" id="orderMenu">
                         <li><a href="#" id="menu-yd-manage"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="loadMenuData('yd', 'YD Plan', 'manage')">YD Plan</a></li>
@@ -722,6 +738,60 @@
                         <li><a href="#" id="menu-delivery-manage"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="loadMenuData('delivery', 'Delivery Plan', 'manage')">Delivery Plan</a></li>
+                        <!-- Batch Plan module: Batch Plan (additive) -->
+                        <li id="sidebarBatchPlanGroup">
+                            <div class="flex items-center justify-between pr-4 hover:bg-sidebarHover transition-colors">
+                                <a href="#" id="menu-batch-plan-all"
+                                    class="sidebar-menu-item submenu-item flex-1 block py-2 pl-11 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                    onclick="openBatchGroup(this.parentElement, 'batchPlanSubmenu', 'plan')">Batch Plan</a>
+                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200 cursor-pointer p-1"
+                                    onclick="toggleSubmenu(this.parentElement, 'batchPlanSubmenu')"></i>
+                            </div>
+                            <ul class="hidden" id="batchPlanSubmenu">
+                                <li><a href="#" id="menu-batch-plan-efl"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('plan/EFL')">EFL Floor <span class="text-[11px] text-gray-500" data-batch-count="plan-EFL"></span></a></li>
+                                <li><a href="#" id="menu-batch-plan-ekl"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('plan/EKL')">EKL Floor <span class="text-[11px] text-gray-500" data-batch-count="plan-EKL"></span></a></li>
+                                <li><a href="#" id="menu-batch-plan-ext"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('plan/EXT')">Ext Floor <span class="text-[11px] text-gray-500" data-batch-count="plan-EXT"></span></a></li>
+                                <li><a href="#" id="menu-batch-plan-pluvia"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('plan/PLUVIA')">Pluvia Wash <span class="text-[11px] text-gray-500" data-batch-count="plan-PLUVIA"></span></a></li>
+                                <li><a href="#" id="menu-batch-plan-outside"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('plan/OUTSIDE')">Outside Dyeing <span class="text-[11px] text-gray-500" data-batch-count="plan-OUTSIDE"></span></a></li>
+                            </ul>
+                        </li>
+                        <!-- Batch Plan module: Batch Card (additive) -->
+                        <li id="sidebarBatchCardGroup">
+                            <div class="flex items-center justify-between pr-4 hover:bg-sidebarHover transition-colors">
+                                <a href="#" id="menu-batch-card-all"
+                                    class="sidebar-menu-item submenu-item flex-1 block py-2 pl-11 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                    onclick="openBatchGroup(this.parentElement, 'batchCardSubmenu', 'card')">Batch Card</a>
+                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200 cursor-pointer p-1"
+                                    onclick="toggleSubmenu(this.parentElement, 'batchCardSubmenu')"></i>
+                            </div>
+                            <ul class="hidden" id="batchCardSubmenu">
+                                <li><a href="#" id="menu-batch-card-efl"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('card/EFL')">EFL Floor <span class="text-[11px] text-gray-500" data-batch-count="card-EFL"></span></a></li>
+                                <li><a href="#" id="menu-batch-card-ekl"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('card/EKL')">EKL Floor <span class="text-[11px] text-gray-500" data-batch-count="card-EKL"></span></a></li>
+                                <li><a href="#" id="menu-batch-card-ext"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('card/EXT')">Ext Floor <span class="text-[11px] text-gray-500" data-batch-count="card-EXT"></span></a></li>
+                                <li><a href="#" id="menu-batch-card-pluvia"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('card/PLUVIA')">Pluvia Wash <span class="text-[11px] text-gray-500" data-batch-count="card-PLUVIA"></span></a></li>
+                                <li><a href="#" id="menu-batch-card-outside"
+                                        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
+                                        onclick="showBatchModule('card/OUTSIDE')">Outside Dyeing <span class="text-[11px] text-gray-500" data-batch-count="card-OUTSIDE"></span></a></li>
+                            </ul>
+                        </li>
                     </ul>
                 </li>
 
@@ -732,7 +802,7 @@
                                 class="ml-2">Report</span></div>
                         <i class="fas fa-chevron-left text-[10px] transition-transform duration-200"></i>
                     </div>
-                    <ul class="bg-sidebarDark hidden max-h-80 overflow-y-auto custom-scrollbar" id="reportMenu">
+                    <ul class="bg-sidebarDark hidden" id="reportMenu">
                         <li><a href="#" id="menu-yd-report"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="loadMenuData('yd', 'YD Report', 'report')">Updated YD Report</a></li>
@@ -760,6 +830,22 @@
                         <li><a href="#" id="menu-planning-prod-info"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="showPlanningProdInfo()">Planning & Production Info</a>
+                        </li>
+                        <!-- Batch Plan module: Batch Report (additive) -->
+                        <li id="sidebarBatchReportGroup">
+                            <div class="py-2 pl-11 pr-4 flex justify-between items-center text-black cursor-pointer hover:bg-sidebarHover transition-colors"
+                                onclick="toggleSubmenu(this, 'batchReportSubmenu')">
+                                <span>Batch Report</span>
+                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200"></i>
+                            </div>
+                            <ul class="hidden" id="batchReportSubmenu">
+                                <li><a href="#" id="menu-batch-report-detail" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('report/detail')">Dyeable Batch</a></li>
+                                <li><a href="#" id="menu-batch-report-summary" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('report/summary')">Dyeable Batch Summary</a></li>
+                                <li><a href="#" id="menu-batch-report-daily" class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                        onclick="showBatchModule('report/daily')">Daily Confirm Batch Plan</a></li>
+                            </ul>
                         </li>
                     </ul>
                 </li>
@@ -1255,6 +1341,7 @@
                             Plan Data</div>
                         <div class="upload-tab" id="tabDelivery" onclick="setUploadCategory('Delivery')">Delivery Plan
                             Data</div>
+                        <div class="upload-tab" id="tabBP" onclick="setUploadCategory('BP')">BP Data</div>
                     </div>
 
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1433,6 +1520,11 @@
                 </div>
 
             </div>
+        </div>
+
+        <!-- Batch Plan module (Batch Plan, Batch Card, Batch Report, Dyeing MC, Flat Allowance, Unit Setup) -->
+        <div id="batchModuleView" class="hidden flex-1 flex flex-col min-h-0 min-w-0 w-full bg-slate-50">
+            <iframe id="batchModuleFrame" title="Batch Plan" class="flex-1 w-full border-0 min-h-0"></iframe>
         </div>
 
         <div id="listView" class="hidden flex-1 flex flex-col min-h-0 min-w-0 w-full bg-slate-50">
@@ -2477,6 +2569,7 @@
     <script defer src="js/plan-filter.js"></script>
     <script defer src="js/plan-vs-actual-tracking-filter.js"></script>
     <script defer src="js/planning-prod-info.js"></script>
+    <script defer src="js/batch-module.js"></script>
 
     <!-- Multi-page ERP A4 Landscape Print Engine Container -->
     <div id="printPagesContainer" aria-hidden="true"></div>

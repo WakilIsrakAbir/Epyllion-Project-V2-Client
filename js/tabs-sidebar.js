@@ -17,6 +17,7 @@ function renderTabs() {
         else if(t.mode === 'planFilter') onClickStr = `showPlanFilter('${t.dept}')`;
         else if(t.mode === 'planTrackingFilter') onClickStr = `showPlanVsActualTrackingFilter('${t.dept}')`;
         else if(t.mode === 'planningProdInfo') onClickStr = `showPlanningProdInfo()`;
+        else if(t.mode === 'batch') onClickStr = `showBatchTab('${t.dept}')`;
         
         tabHtml += `<div class="px-3 sm:px-4 py-2 text-[11px] sm:text-[13px] border border-gray-200 border-b-0 rounded-t cursor-pointer flex items-center shrink-0 transition-colors ${activeTabId === t.id ? 'bg-white font-bold text-gray-800' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}" onclick="${onClickStr}">${t.title} <i class="fas fa-times ml-2 text-[10px] text-gray-400 hover:text-red-500 transition-colors" onclick="closeTab(event, '${t.id}')"></i></div>`;
     });
@@ -33,6 +34,7 @@ function closeTab(e, id) {
         else if(t.mode === 'planFilter') showPlanFilter(t.dept);
         else if(t.mode === 'planTrackingFilter') showPlanVsActualTrackingFilter(t.dept);
         else if(t.mode === 'planningProdInfo') showPlanningProdInfo();
+        else if(t.mode === 'batch') showBatchTab(t.dept);
         else loadMenuData(t.dept, t.title, t.mode);
     }
 }

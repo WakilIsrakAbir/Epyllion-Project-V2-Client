@@ -79,7 +79,10 @@ const MENU_GROUPS = [
     icon: "fa-database",
     items: [
       ["view", "Source File Upload"],
-      ["setup", "Setup (Dropdown Master)"],
+      ["setup", "Dropdown Master Setup"],
+      ["dyeingMc", "Dyeing MC"],
+      ["flatAllowance", "Flat Allowance"],
+      ["unitSetup", "Unit Setup"],
     ],
   },
   {
@@ -95,6 +98,32 @@ const MENU_GROUPS = [
     ],
   },
   {
+    key: "batchPlan",
+    title: "Batch Plan",
+    icon: "fa-layer-group",
+    items: [
+      ["all", "All Orders"],
+      ["efl", "EFL Floor"],
+      ["ekl", "EKL Floor"],
+      ["ext", "Ext Floor"],
+      ["pluvia", "Pluvia Wash"],
+      ["outside", "Outside Dyeing"],
+    ],
+  },
+  {
+    key: "batchCard",
+    title: "Batch Card",
+    icon: "fa-id-card",
+    items: [
+      ["all", "All Orders"],
+      ["efl", "EFL Floor"],
+      ["ekl", "EKL Floor"],
+      ["ext", "Ext Floor"],
+      ["pluvia", "Pluvia Wash"],
+      ["outside", "Outside Dyeing"],
+    ],
+  },
+  {
     key: "reports",
     title: "Report",
     icon: "fa-chart-column",
@@ -107,6 +136,16 @@ const MENU_GROUPS = [
       ["orderStatus", "Order Status"],
       ["productInfo", "Product Info"],
       ["planningProdInfo", "Planning & Production Info"],
+    ],
+  },
+  {
+    key: "batchReport",
+    title: "Batch Report",
+    icon: "fa-chart-simple",
+    items: [
+      ["dyeableBatch", "Dyeable Batch"],
+      ["dyeableSummary", "Dyeable Batch Summary"],
+      ["dailyConfirm", "Daily Confirm Batch Plan"],
     ],
   },
   {
@@ -187,6 +226,7 @@ const ACTION_GROUPS = [
       ["uploadDyeing", "Upload Dyeing Data"],
       ["uploadFinishing", "Upload Finishing Data"],
       ["uploadDelivery", "Upload Delivery Data"],
+      ["uploadBP", "Upload BP Data"],
       ["deleteFiles", "Delete Uploaded Files"],
       ["wipeSystem", "Wipe System Data"],
     ],
@@ -223,6 +263,18 @@ const ACTION_GROUPS = [
       ["loadSummaryDyeing", "Load Summary (Dyeing)"],
       ["loadSummaryDelivery", "Load Summary (Delivery)"],
       ["loadSummaryDeliveryfloor", "Load Summary (Delivery Floor)"],
+    ],
+  },
+  {
+    title: "Batch Plan Actions",
+    icon: "fa-layer-group",
+    items: [
+      ["batchEdit", "Edit Batch Plan (rows, machines, General Info)"],
+      ["batchTentative", "Make Batch Plan Tentative"],
+      ["batchConfirm", "Confirm / Re-Confirm Batch Plan"],
+      ["batchInternalChange", "Approve Internal change"],
+      ["batchMovePending", "Move Batch Plan to Pending"],
+      ["batchCardGenerate", "Generate / Revise Batch Card"],
     ],
   },
   {
@@ -281,6 +333,16 @@ const DOWNLOAD_GROUPS = [
       ["loadSummaryDeliveryfloor", "Load Summary (Delivery Floor)"],
     ],
   },
+  {
+    title: "Batch Plan & Batch Report",
+    items: [
+      ["batchPlanPrint", "Batch Plan Print / PDF"],
+      ["batchCardPrint", "Batch Card Print / PDF"],
+      ["dyeableExcel", "Dyeable Batch (Excel)"],
+      ["dyeableSummaryExcel", "Dyeable Batch Summary (Excel / Print)"],
+      ["dailyConfirmExcel", "Daily Confirm Batch Plan (Excel / Print)"],
+    ],
+  },
 ];
 
 function emptyPermissions() {
@@ -331,7 +393,12 @@ function makeTemplate(role) {
       "completeOrder",
       "reopenOrder",
       "changeOrderStatus",
+      "batchConfirm",
+      "batchInternalChange",
+      "batchMovePending",
+      "batchCardGenerate",
     ].forEach((k) => (p.actions[k] = true));
+    ["batchPlan", "batchCard", "batchReport"].forEach((k) => setMenu(k));
     setAllObj(p.downloads);
     p.buyers.accessType = "all";
   } else if (role === "Planner") {
@@ -344,7 +411,10 @@ function makeTemplate(role) {
       "loadCalculation",
     ].forEach((k) => setMenu(k));
     p.menus.dataManagement.view = true;
+    ["batchPlan", "batchCard", "batchReport"].forEach((k) => setMenu(k));
     [
+      "batchEdit",
+      "batchTentative",
       "saveYD",
       "saveKnitting",
       "saveDyeing",
@@ -389,11 +459,16 @@ function makeTemplate(role) {
       "trackingFinishing",
       "trackingDelivery",
       "trackingDeliveryFloor",
+      "batchPlanPrint",
+      "batchCardPrint",
+      "dyeableExcel",
+      "dyeableSummaryExcel",
+      "dailyConfirmExcel",
     ].forEach((k) => (p.downloads[k] = true));
     p.buyers.accessType = "selected";
     p.buyers.buyerIds = ["hm", "next", "marks"];
   } else {
-    ["reports", "planFilter", "trackingReports", "planTrackingFilter"].forEach((k) => setMenu(k));
+    ["reports", "planFilter", "trackingReports", "planTrackingFilter", "batchReport"].forEach((k) => setMenu(k));
     ["globalSearch"].forEach((k) => (p.actions[k] = true));
 
     [
@@ -453,8 +528,34 @@ function normalizePermissions(rawPermissions, role) {
     };
   });
 
+  // Batch Plan keys are new: a user saved before they existed gets them only when
+  // an Admin ticks them in the permission builder, never from the role template.
+  const isMissing = (obj, key) => !obj || !Object.prototype.hasOwnProperty.call(obj, key);
+  Object.entries(BATCH_PERMISSION_KEYS.menus).forEach(([group, keys]) => {
+    keys.forEach((key) => {
+      if (isMissing(rawPermissions.menus && rawPermissions.menus[group], key)) normalized.menus[group][key] = false;
+    });
+  });
+  BATCH_PERMISSION_KEYS.actions.forEach((key) => {
+    if (isMissing(rawPermissions.actions, key)) normalized.actions[key] = false;
+  });
+  BATCH_PERMISSION_KEYS.downloads.forEach((key) => {
+    if (isMissing(rawPermissions.downloads, key)) normalized.downloads[key] = false;
+  });
+
   return normalized;
 }
+
+const BATCH_PERMISSION_KEYS = {
+  menus: {
+    dataManagement: ["dyeingMc", "flatAllowance", "unitSetup"],
+    batchPlan: ["all", "efl", "ekl", "ext", "pluvia", "outside"],
+    batchCard: ["all", "efl", "ekl", "ext", "pluvia", "outside"],
+    batchReport: ["dyeableBatch", "dyeableSummary", "dailyConfirm"],
+  },
+  actions: ["uploadBP", "batchEdit", "batchTentative", "batchConfirm", "batchInternalChange", "batchMovePending", "batchCardGenerate"],
+  downloads: ["batchPlanPrint", "batchCardPrint", "dyeableExcel", "dyeableSummaryExcel", "dailyConfirmExcel"],
+};
 
 let users = [];
 let createPermissions = makeTemplate("Viewer");
