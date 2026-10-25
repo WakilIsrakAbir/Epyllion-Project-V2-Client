@@ -1288,10 +1288,10 @@ async function initializeStorage() {
     $('viewBadgeText').textContent = 'Ready';
     renderBatchRegister();
     renderFileList();
-    setupDraft = null;
-    // Project: a reload (for example after a Unit Setup save) must not keep a Flat Allowance draft built from older data.
-    flatAllowanceDraft = null;
-    flatAllowanceDirty = false;
+    // Project: a reload (for example after a Unit Setup save) rebuilds the Dyeing MC and Flat Allowance
+    // drafts from the new data, but keeps a draft that has unsaved edits.
+    if (!setupDirty) setupDraft = null;
+    if (!flatAllowanceDirty) flatAllowanceDraft = null;
     renderMachineSetup();
   } catch (err) {
     loadError = err;

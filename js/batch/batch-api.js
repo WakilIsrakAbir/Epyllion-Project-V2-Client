@@ -137,7 +137,15 @@ const BatchApi = (() => {
     if (window.parent !== window) window.parent.postMessage({ type: "batch-route", route: newRoute }, "*");
   }
 
-  return { loadState, commit, applyPermissions, notifyCounts, ready, failed, route, has, syncRoute };
+  // Unsaved work on this page: an edited plan report or a Setup table draft. The project page asks
+  // before it reloads this page for newer data.
+  function hasUnsavedChanges() {
+    try {
+      return !!((reportDraft && reportDraft.dirty) || (unitSetupDraft && unitSetupDraft.size) || setupDirty || flatAllowanceDirty);
+    } catch (_) { return false; }
+  }
+
+  return { loadState, commit, applyPermissions, notifyCounts, ready, failed, route, has, syncRoute, hasUnsavedChanges };
 })();
 // Top-level const is not a window property; the project page (index.html) calls BatchApi.route().
 window.BatchApi = BatchApi;

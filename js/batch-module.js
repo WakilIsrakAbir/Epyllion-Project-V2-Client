@@ -29,6 +29,11 @@ function batchHasMenu(group, key) {
   const p = batchPermissions();
   return !!(p && p.menus && p.menus[group] && p.menus[group][key] === true);
 }
+// A floor page can be opened with that floor's permission or with the all-orders permission
+// (the server's canUseFloor rule, lib/batch/source.js).
+function batchCanOpen(group, key) {
+  return batchHasMenu(group, key) || (key !== "all" && batchHasMenu(group, "all"));
+}
 function batchHasAction(key) {
   if (localStorage.getItem("role") === "Admin") return true;
   const p = batchPermissions();
@@ -42,7 +47,7 @@ let batchDataStale = false;
 function showBatchModule(route, fromTab) {
   if (!BATCH_ROUTES[route]) route = "plan";
   const [title, menuId, group, key] = BATCH_ROUTES[route];
-  if (!batchHasMenu(group, key)) {
+  if (!batchCanOpen(group, key)) {
     if (typeof showToast === "function") showToast("Access Denied: " + title + " permission required.", true);
     showDashboardHome();
     return;
@@ -53,23 +58,30 @@ function showBatchModule(route, fromTab) {
   document.getElementById("batchModuleView").classList.remove("hidden");
 
   const frame = document.getElementById("batchModuleFrame");
+  let reloaded = false;
   if (!frame.getAttribute("src")) {
     frame.setAttribute("src", "batch.html#" + route);
+    reloaded = true;
   } else {
     try {
       const win = frame.contentWindow;
-      if (batchDataStale) {
-        // New upload: reload the page so it reads the latest General, Knitting and BP data.
+      // Newer data (upload, Dyeing Plan save, unit list change): reload the page so it reads it,
+      // unless the user wants to keep unsaved work there first.
+      const reload = batchDataStale && !(win.BatchApi && win.BatchApi.hasUnsavedChanges && win.BatchApi.hasUnsavedChanges() &&
+        !confirm("Batch Plan has unsaved changes. Load the latest data and discard them?"));
+      if (reload) {
         win.history.replaceState(null, "", "#" + route);
         win.location.reload();
+        reloaded = true;
       } else if (win.location.hash !== "#" + route) win.location.hash = route;
       else if (!fromTab && win.BatchApi) win.BatchApi.route();
     } catch (e) {
       frame.setAttribute("src", "batch.html#" + route);
+      reloaded = true;
     }
   }
 
-  batchDataStale = false;
+  if (reloaded) batchDataStale = false;
   if (!openTabs.find((t) => t.id === activeTabId)) openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
   renderTabs();
   setActiveSidebarMenu(menuId);
@@ -81,7 +93,7 @@ function showBatchModule(route, fromTab) {
 function markBatchRoute(route) {
   if (!BATCH_ROUTES[route]) return;
   const [title, menuId, group, key] = BATCH_ROUTES[route];
-  if (!batchHasMenu(group, key)) return;
+  if (!batchCanOpen(group, key)) return;
   localStorage.setItem("activePage", JSON.stringify({ page: "batch", route }));
   activeTabId = "batch:" + route;
   if (!openTabs.find((t) => t.id === activeTabId)) openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
@@ -131,7 +143,7 @@ function applyBatchPermissions() {
   for (const [groupId, permGroup, prefix, keys, parentMenu] of groups) {
     let any = false;
     for (const key of keys) {
-      const on = batchHasMenu(permGroup, key);
+      const on = batchCanOpen(permGroup, key);
       any = any || on;
       if (key !== "all") toggle(`menu-batch-${prefix}-${key}`, on);
     }
@@ -186,13 +198,18 @@ function openBatchGroup(header, submenuId, route) {
     originalDirty.apply(this, arguments);
     batchDataStale = true;
   };
-  // Dropdown Master Setup (js/setup.js) changes the unit list used by Unit Setup and the floors:
-  // reload the Batch Plan page the next time it is opened.
+  // Dropdown Master Setup (js/setup.js) can change the unit list that Unit Setup offers: reload the
+  // Batch Plan page the next time it is opened, but only when the unit list really changed
+  // (not for a cancelled or failed action, and not for Process changes).
+  const unitListText = () => {
+    try { return JSON.stringify((typeof dropdownMasterCache !== "undefined" && dropdownMasterCache.units) || []); } catch (e) { return ""; }
+  };
   for (const name of ["handleAddDropdownItem", "handleEditDropdownItem", "toggleDropdownItemStatus", "deleteDropdownItem"]) {
     const original = window[name];
     if (typeof original !== "function") continue;
     window[name] = async function () {
-      try { return await original.apply(this, arguments); } finally { batchDataStale = true; }
+      const before = unitListText();
+      try { return await original.apply(this, arguments); } finally { if (unitListText() !== before) batchDataStale = true; }
     };
   }
   const originalInit = initDashboard;
