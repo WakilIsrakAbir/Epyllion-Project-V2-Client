@@ -1194,7 +1194,7 @@ async function commitChanges(changes) {
     for (const booking of changes.master) {
       const old = previous.get(booking.number);
       if (old !== booking && JSON.stringify(old) !== JSON.stringify(booking)) {
-        payload.plans.push({ orderNo: booking.number, version: planVersions.get(booking.number) || 0, state: booking });
+        payload.plans.push({ orderNo: booking.number, version: planVersions.get(booking.number) || 0, state: unsavedInheritedRemoved(booking) });
       }
     }
   }
@@ -1277,6 +1277,7 @@ async function initializeStorage() {
     };
     planVersions = new Map(Object.entries(saved.planVersions || {}));
     settingVersions = { ...(saved.settingVersions || {}) };
+    if (Array.isArray(saved.batchUnits)) setBatchUnits(saved.batchUnits);
     unitSetupBuyerNames = Array.isArray(saved.buyers) ? saved.buyers : [];
     unitSetupUnitOptions = Array.isArray(saved.units) ? saved.units : [];
     unitSetupDraft = null;
@@ -1394,7 +1395,27 @@ let currentReportReviewLatest = false;
 const floorValueKey = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 const floorAliases = new Map(BATCH_FLOORS.flatMap(floor => floor.aliases.map(alias => [floorValueKey(alias), floor.key])));
 function normalizeFloor(value) { return floorAliases.get(floorValueKey(value)) || null; }
-function floorLabel(key) { return BATCH_FLOORS.find(floor => floor.key === key)?.label || 'All Floors'; }
+/* Project (plan section 16.3): the floor list is the list of Dyeing Plan units that the server sends
+   ([{key, label}], e.g. EFL, EKL, Ext, DTL). The demo's five floors keep their keys and old spellings, so
+   Dyeing MC rows such as 'EFL-EXT' and plans saved before still read as before. */
+const DEMO_FLOOR_ALIASES = Object.fromEntries(BATCH_FLOORS.map(floor => [floor.key, floor.aliases.slice()]));
+function setBatchUnits(units) {
+  BATCH_FLOORS.length = 0;
+  for (const unit of units) {
+    const key = String(unit && unit.key || '').trim();
+    if (!/^[A-Z0-9]{1,40}$/.test(key) || BATCH_FLOORS.some(floor => floor.key === key)) continue;
+    // Unit names come from Dropdown Master or the Dyeing file; HTML characters are dropped before display.
+    const label = String(unit.label || key).replace(/[<>&"'`]/g, '').trim() || key;
+    BATCH_FLOORS.push({ key, label, aliases: [label, key, ...(DEMO_FLOOR_ALIASES[key] || [])] });
+  }
+  floorAliases.clear();
+  for (const [key, aliases] of Object.entries(DEMO_FLOOR_ALIASES)) for (const alias of aliases) floorAliases.set(floorValueKey(alias), key);
+  for (const floor of BATCH_FLOORS) for (const alias of floor.aliases) floorAliases.set(floorValueKey(alias), floor.key);
+  for (const key of Object.keys(DYEABLE_FLOOR_LABELS)) delete DYEABLE_FLOOR_LABELS[key];
+  for (const floor of BATCH_FLOORS) DYEABLE_FLOOR_LABELS[floor.key] = floor.label;
+}
+// Project (plan section 16.3): a unit key that is not in the current list shows its own name, not 'All Floors'.
+function floorLabel(key) { return BATCH_FLOORS.find(floor => floor.key === key)?.label || (key ? (DEMO_FLOOR_ALIASES[key]?.[0] || key) : 'All Floors'); }
 function knittingRowFloor(row) { return normalizeFloor(row._fabricColumns?.floor); }
 
 // Rebuild only after a new Knitting Plan dataset is saved. Register pagination,
@@ -1470,6 +1491,9 @@ function getFloorBooking(booking, floor = activeFloor) {
   };
 }
 function getFloorBookings() {
+  // Project: the all-orders list is for users with the all-orders permission; a unit-only user who lands
+  // there (a unit no longer in use) sees it empty.
+  if (!activeFloor && !BatchApi.has('menus.batchPlan.all')) return [];
   return getStoredMasterList()
     .filter(booking => !activeFloor || hasOrderOnFloor(booking.number, activeFloor))
     .map(booking => getFloorBooking(booking));
@@ -1487,7 +1511,7 @@ function updateFloorScopeNote() {
     let unassigned = 0;
     for (const entry of knittingBookingIndex.values()) for (const row of entry.rows) if (!knittingRowFloor(row)) unassigned++;
     $('floorScopeNote').textContent = 'All orders · Choose a floor submenu for its assigned items.' +
-      (unassigned ? ` ${unassigned} item(s) have no unit or a unit that is not a Batch floor; set the Unit in Dyeing Plan or the buyer's default in Unit Setup to assign them.` : '');
+      (unassigned ? ` ${unassigned} item(s) have no unit or a combined unit such as EKL+DTL; set one Unit in Dyeing Plan to assign them.` : '');
   }
 }
 function floorOrderLinks(number, floor = activeFloor, report = false) {
@@ -2316,6 +2340,24 @@ function makeConfirmedSnapshot(booking,floor,rows=getKnittingRows(booking.number
     headerData:copyReportData(Object.fromEntries(CONFIRMED_HEADER_FIELDS.filter(key=>header[key]!==undefined).map(key=>[key,header[key]])))};
 }
 // Protect older saved confirmations before the next import replaces live source data.
+/* Project: unit records that captureMissingConfirmedSnapshots makes from a whole-order confirmation, mapped
+   to the record the server had for that unit (undefined when none). Such a record is saved with the order's
+   next change only when this user may change that unit's confirmed plan (the server's rule: that unit's
+   permission and Internal change); otherwise the server keeps its own record and this page keeps the made
+   one in memory, so a user without that unit can still save the order. */
+const inheritedFloorPlans=new WeakMap();
+function unsavedInheritedRemoved(booking){
+  const plans=booking.floorPlans;if(!plans)return booking;
+  let kept=null;
+  for(const [floor,plan] of Object.entries(plans)){
+    if(!inheritedFloorPlans.has(plan))continue;
+    if((BatchApi.has('menus.batchPlan.all') || BatchApi.has('menus.batchPlan.'+floor.toLowerCase())) && BatchApi.has('actions.batchInternalChange'))continue;
+    kept=kept || {...plans};
+    const original=inheritedFloorPlans.get(plan);
+    if(original===undefined)delete kept[floor];else kept[floor]=original;
+  }
+  return kept?{...booking,floorPlans:kept}:booking;
+}
 function captureMissingConfirmedSnapshots(master) {
   let changed=false;
   for(let index=0;index<master.length;index++) {
@@ -2327,6 +2369,7 @@ function captureMissingConfirmedSnapshots(master) {
       if(old.confirmedSnapshot?.reportData && old.confirmedBy!==undefined && !needsBp && old.flatAllowanceSnapshot!==undefined)continue;
       const plan={...old,status:'Confirm',flatAllowanceSnapshot:old.flatAllowanceSnapshot || copyReportData(getFlatAllowance()),confirmedBy:old.confirmedBy || old.tentativeBy || (!old.status ? booking.confirmedBy || booking.tentativeBy : '') || '',
         confirmedSnapshot:old.confirmedSnapshot?{...old.confirmedSnapshot,...(needsBp?{bpSourceRows:[],bpSourceFingerprint:knittingSourceFingerprint([])}:{})}:makeConfirmedSnapshot(booking,floor)};
+      if(floor && !old.status)inheritedFloorPlans.set(plan,booking.floorPlans?.[floor]);
       booking=floor?{...booking,floorPlans:{...(booking.floorPlans || {}),[floor]:plan}}:{...booking,...plan};
       if(!plan.confirmedSnapshot.reportData)plan.confirmedSnapshot={...plan.confirmedSnapshot,reportData:captureConfirmedReport(booking,floor,{useDraft:false})};
       // The root spread above holds the earlier snapshot reference; publish the
@@ -2345,6 +2388,7 @@ function needsReconfirmation(booking,floor) {
 }
 function getReconfirmBookings() {
   if(activeFloor)return getFloorBookings().filter(booking=>needsReconfirmation(booking,activeFloor)).map(booking=>({...booking,_registerFloor:activeFloor}));
+  if(!BatchApi.has('menus.batchPlan.all'))return [];
   const rows=[];
   for(const booking of getStoredMasterList()) {
     if(needsReconfirmation(booking,null))rows.push({...getFloorBooking(booking,null),_registerFloor:null});
@@ -2602,7 +2646,9 @@ function splitColourQuantities(quantitiesKg, batchCount) {
    Choices belong to one booking, floor and normalized colour, so selecting a
    machine never changes another floor's or another colour's saved preference. */
 const MACHINE_FLOOR_POOLS = { EFL:['EFL'], EKL:['EKL','EXT'], EXT:['EXT'], PLUVIA:['PLUVIA'], OUTSIDE:['OUTSIDE'] };
-function machineFloorsForMenu(floor) { return MACHINE_FLOOR_POOLS[floor] || []; }
+// Project (plan section 16.3): a unit outside the demo's five floors uses the Dyeing MC machines whose
+// 'Dyeing Floor' is that unit.
+function machineFloorsForMenu(floor) { return MACHINE_FLOOR_POOLS[floor] || (floor ? [floor] : []); }
 function colourSelectionKey(shade) { return String(shade ?? '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function machineEvaluationKey(group) { return group.selectionKey || colourSelectionKey(group.shade); }
 function dyeingBatchGroupKey(shade,group) { return JSON.stringify([colourSelectionKey(shade),group || 'together']); }
@@ -3597,8 +3643,9 @@ function getBpRows(number,floor=null,knittingRows=null,additionalColours=null) {
   const manualColours=additionalColours || (sourceBooking(number) && savedReportPlan(sourceBooking(number),floor).reportOverrides?.batchRows || []).map(row=>row.shade);
   const colours=new Set([...(knittingRows || getKnittingRows(number,floor)).map(row=>colourSelectionKey(firstUploadedValue(row,BATCH_CALCULATION.colorHeaders))),...manualColours.map(colourSelectionKey)]);
   return rows.filter(row=>{
+    // Project (plan section 16.3): a BP floor counts only when it is one of the current units.
     const assignedFloor=normalizeFloor(bpValue(row,'floor'));
-    if(assignedFloor)return assignedFloor===floor;
+    if(assignedFloor && BATCH_FLOORS.some(item=>item.key===assignedFloor))return assignedFloor===floor;
     const colour=colourSelectionKey(bpValue(row,'colour'));
     return !colour || colours.has(colour);
   });
@@ -4888,11 +4935,21 @@ function confirmedCardPlan(original,floor){
   }
   cache.set(floor,{setup:appState.setup,flat:appState.flatAllowance,datasets:appState.datasets,value});return value;
 }
+/* Project: units follow the Dyeing Plan and can change after cards were made. While an order's All Orders
+   plan is confirmed and has active cards, its batches are not offered again under a unit, so no batch gets a
+   second active card; the All Orders scope stays for those cards. */
+let wholeOrderCardsSource=null,wholeOrderCardOrders=new Set();
+function hasWholeOrderCards(booking){
+  const cards=getBatchCards();
+  if(wholeOrderCardsSource!==cards){wholeOrderCardsSource=cards;wholeOrderCardOrders=new Set(cards.filter(card=>!card.floor && card.status!=='superseded').map(card=>normalizeBookingKey(card.number)));}
+  return booking.status==='Confirm' && wholeOrderCardOrders.has(normalizeBookingKey(booking.number));
+}
 function confirmedCardScopes(floor=activeCardFloor){
   const scopes=[];
   for(const booking of getStoredMasterList()){
-    if(floor){if(hasOrderOnFloor(booking.number,floor) && reportBookingStatus(booking,floor)==='Confirm')scopes.push({booking,floor});continue;}
-    const floors=getOrderFloors(booking.number).filter(key=>reportBookingStatus(booking,key)==='Confirm');
+    const wholeOrder=hasWholeOrderCards(booking);
+    if(floor){if(!wholeOrder && hasOrderOnFloor(booking.number,floor) && reportBookingStatus(booking,floor)==='Confirm')scopes.push({booking,floor});continue;}
+    const floors=wholeOrder?[]:getOrderFloors(booking.number).filter(key=>reportBookingStatus(booking,key)==='Confirm');
     for(const key of floors)scopes.push({booking,floor:key});
     if(!floors.length && booking.status==='Confirm')scopes.push({booking,floor:null});
   }
@@ -4914,7 +4971,9 @@ function selectCardFloor(floor){activeCardFloor=BATCH_FLOORS.some(value=>value.k
 function renderCardRegister(){
   currentCardOrder=null;currentCardRecordId=null;
   $('cardRegisterPanel').classList.remove('hidden');$('cardOrderPanel').classList.add('hidden');$('cardPreviewPanel').classList.add('hidden');
-  const scopes=confirmedCardScopes(),records=getBatchCards().filter(card=>card.status!=='superseded' && (!activeCardFloor || card.floor===activeCardFloor));
+  // Project: like getFloorBookings, all cards are listed only for users with the all-orders Batch Card permission.
+  const allowed=!!activeCardFloor || BatchApi.has('menus.batchCard.all');
+  const scopes=allowed?confirmedCardScopes():[],records=allowed?getBatchCards().filter(card=>card.status!=='superseded' && (!activeCardFloor || card.floor===activeCardFloor)):[];
   const completed=records.filter(card=>!batchCardRevisionReason(card)),revisions=records.filter(card=>!!batchCardRevisionReason(card)),partial=[];
   for(const scope of scopes){const plan=confirmedCardPlan(scope.booking,scope.floor),created=new Set(records.filter(card=>normalizeBookingKey(card.number)===normalizeBookingKey(scope.booking.number) && card.floor===scope.floor).map(card=>card.batchId));if(created.size && plan.entries.some(entry=>created.has(entry.id)))for(const entry of plan.entries)if(!created.has(entry.id))partial.push({...scope,plan,entry});}
   $('cardCountPending').textContent=scopes.length;$('cardCountPartial').textContent=partial.length;$('cardCountCompleted').textContent=completed.length;$('cardCountRevision').textContent=revisions.length;
@@ -4950,6 +5009,7 @@ function openCardOrder(number,floor){
 }
 async function generateBatchCard(number,floor,batchId){
   if(!canChangeData())return false;
+  if(floor && sourceBooking(number) && hasWholeOrderCards(sourceBooking(number))){toast('Order '+number+' has batch cards from its All Orders plan. Move that plan to Pending before making unit cards.');return false;}
   const booking=sourceBooking(number),plan=confirmedCardPlan(booking,floor);if(!cardReady(booking,floor,plan)){toast('Re-confirm the latest batch plan before generating this card.');return false;}
   const entry=plan.entries.find(entry=>entry.id===batchId);if(!entry){toast('This batch is not in the confirmed plan.');return false;}
   const records=copyReportData(getBatchCards()),index=records.findIndex(card=>card.id===cardKey(number,floor,batchId)),old=index>=0?records[index]:null;
@@ -5220,7 +5280,7 @@ function renderDyeableReport() {
   $('btnDownloadDyeable').disabled=!result.rows.length || dyeableExportBusy;
   const widths=[130,145,120,145,150,...Array(count).fill(90),125,240,205,85,90,150];
   $('dyeableReportTable').innerHTML='<table class="dyeable-table" style="min-width:'+widths.reduce((a,b)=>a+b,0)+'px"><colgroup>'+widths.map(width=>'<col style="width:'+width+'px">').join('')+'</colgroup><thead><tr>'+headers.map(header=>'<th>'+esc(header)+'</th>').join('')+'</tr></thead><tbody>'+(
-    result.rows.length?result.rows.map(row=>'<tr><td title="'+esc('Order '+row.number+' · '+(DYEABLE_FLOOR_LABELS[row.floor] || 'All floors')+' · '+row.revision)+'"><strong>'+esc(row.id)+'</strong></td><td>'+esc(row.shade)+'</td><td>'+esc(row.ld)+'</td><td>'+esc(row.reference)+'</td><td>'+esc(row.buyer)+'</td>'+Array.from({length:count},(_,index)=>{
+    result.rows.length?result.rows.map(row=>'<tr><td title="'+esc('Order '+row.number+' · '+(row.floor?DYEABLE_FLOOR_LABELS[row.floor] || floorLabel(row.floor):'All floors')+' · '+row.revision)+'"><strong>'+esc(row.id)+'</strong></td><td>'+esc(row.shade)+'</td><td>'+esc(row.ld)+'</td><td>'+esc(row.reference)+'</td><td>'+esc(row.buyer)+'</td>'+Array.from({length:count},(_,index)=>{
       const fabric=row.fabrics[index],quantity=fabric?.quantity;
       return '<td class="dyeable-numeric" title="'+esc(fabric?(fabric.type+(fabric.gsm?' · GSM '+fabric.gsm:'')):'')+'">'+(quantity===null?'Weight missing':quantity?esc(kgText(quantity)):'')+'</td>';
     }).join('')+'<td class="dyeable-numeric">'+(row.totalKg===null?'Weight missing':esc(kgText(row.totalKg)))+'</td><td>'+esc(row.fabrication)+'</td><td>'+knittingBadge(row.knit,true)+'</td><td class="dyeable-numeric">'+esc(row.loading || 'Not available')+'</td><td class="dyeable-numeric">'+esc(row.nozzle || 'Not available')+'</td><td title="'+esc(row.machineNote || (row.machineRecovered?'Recovered from saved machine details.':row.machine?'Saved machine assignment.':'No saved machine assignment.'))+'">'+esc(row.machine || 'Not assigned')+'</td></tr>').join(''):'<tr><td colspan="'+headers.length+'" class="dyeable-empty-cell">No confirmed batches match these filters.</td></tr>')+'</tbody></table>';
@@ -5262,9 +5322,12 @@ function dyeableFloorTotalLabel(floor){return floor.label+(['EFL','EKL','EXT'].i
 function emptyDyeableSummaryCells(){return Array.from({length:3},()=>({count:0,quantity:0,missing:0}));}
 function dyeableSummaryCriterion(row){return row.knit?.kind==='ready'?(row.ld.trim()?0:1):row.ld.trim()?2:-1;}
 function buildDyeableSummary(result) {
-  const selectedFloors=Object.keys(DYEABLE_FLOOR_LABELS).filter(floor=>dyeableFilterMatches(result.filters.floor,floor));
+  // Project (plan section 16.3): a batch confirmed on a unit that is no longer in the list keeps its own group.
+  const labels={...DYEABLE_FLOOR_LABELS};
+  for(const row of result.rows)if(row.floor && !labels[row.floor])labels[row.floor]=floorLabel(row.floor);
+  const selectedFloors=Object.keys(labels).filter(floor=>dyeableFilterMatches(result.filters.floor,floor));
   if(result.rows.some(row=>!row.floor))selectedFloors.push(null);
-  const floors=selectedFloors.map(floor=>({floor,label:DYEABLE_FLOOR_LABELS[floor] || 'Multiple / unassigned',buyers:[],totals:emptyDyeableSummaryCells()}));
+  const floors=selectedFloors.map(floor=>({floor,label:labels[floor] || 'Multiple / unassigned',buyers:[],totals:emptyDyeableSummaryCells()}));
   let excluded=0;
   for(const row of result.rows){
     const group=floors.find(group=>group.floor===row.floor);if(!group)continue;
@@ -5400,14 +5463,9 @@ async function saveUnitSetup(){
     rows[index]={...rows[index],unit,hidden:false};
     rows=rows.filter((row,position)=>position===index || unitBuyerKey(row.buyer)!==key);
   }
-  let saved=false;
+  // Plan section 16.3: Unit Setup no longer decides units, so nothing else has to be reloaded after a save.
   setMutationBusy(true);
-  try{await commitChanges({unitSetup:rows});unitSetupDraft=null;saved=true;}catch(error){showSaveError(error);}finally{setMutationBusy(false);}
-  if(!saved)return false;
-  toast('Unit Setup saved. Batch Plan floors are being updated.');
-  // Floors use these defaults when a colour has no Dyeing Plan unit (plan section 15.4), so load the data again.
-  await initializeStorage();
-  return true;
+  try{await commitChanges({unitSetup:rows});unitSetupDraft=null;renderUnitSetup();toast('Unit Setup saved.');return true;}catch(error){showSaveError(error);return false;}finally{setMutationBusy(false);}
 }
 function generalPlanTimestamp(booking,floor,revised=false){const plan=savedReportPlan(currentReportBooking() || booking,floor);const value=revised?(plan.batchPlanRevisedAt || plan.lastReconfirmation?.savedAt):(plan.batchPlanCreatedAt || plan.confirmationHistory?.[0]?.confirmedAt);return value?dyeablePrintedAt(value):(revised?booking.revisedBatch:booking.batchDate) || '';}
 $('navUnitSetup').addEventListener('click',()=>selectSetupPanel('unit'));

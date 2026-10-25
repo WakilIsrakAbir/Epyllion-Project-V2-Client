@@ -98,16 +98,17 @@ const MENU_GROUPS = [
     ],
   },
   {
+    // Unit items are replaced by loadBatchUnitPermissionItems() with the Dyeing Plan units (plan section 16.3).
     key: "batchPlan",
     title: "Batch Plan",
     icon: "fa-layer-group",
     items: [
       ["all", "All Orders"],
-      ["efl", "EFL Floor"],
-      ["ekl", "EKL Floor"],
-      ["ext", "Ext Floor"],
-      ["pluvia", "Pluvia Wash"],
-      ["outside", "Outside Dyeing"],
+      ["efl", "EFL"],
+      ["ekl", "EKL"],
+      ["ext", "Ext"],
+      ["pluvia", "Pluvia"],
+      ["outside", "Outside"],
     ],
   },
   {
@@ -116,11 +117,11 @@ const MENU_GROUPS = [
     icon: "fa-id-card",
     items: [
       ["all", "All Orders"],
-      ["efl", "EFL Floor"],
-      ["ekl", "EKL Floor"],
-      ["ext", "Ext Floor"],
-      ["pluvia", "Pluvia Wash"],
-      ["outside", "Outside Dyeing"],
+      ["efl", "EFL"],
+      ["ekl", "EKL"],
+      ["ext", "Ext"],
+      ["pluvia", "Pluvia"],
+      ["outside", "Outside"],
     ],
   },
   {
@@ -531,7 +532,10 @@ function normalizePermissions(rawPermissions, role) {
   // Batch Plan keys are new: a user saved before they existed gets them only when
   // an Admin ticks them in the permission builder, never from the role template.
   const isMissing = (obj, key) => !obj || !Object.prototype.hasOwnProperty.call(obj, key);
-  Object.entries(BATCH_PERMISSION_KEYS.menus).forEach(([group, keys]) => {
+  // Batch Plan and Batch Card have one key per Dyeing Plan unit; a unit key the user never had is off.
+  const batchMenuKeys = { ...BATCH_PERMISSION_KEYS.menus };
+  MENU_GROUPS.filter((g) => g.key === "batchPlan" || g.key === "batchCard").forEach((g) => { batchMenuKeys[g.key] = g.items.map(([k]) => k); });
+  Object.entries(batchMenuKeys).forEach(([group, keys]) => {
     keys.forEach((key) => {
       if (isMissing(rawPermissions.menus && rawPermissions.menus[group], key)) normalized.menus[group][key] = false;
     });
@@ -1248,6 +1252,17 @@ function switchRow(path, key, label, checked, description = "") {
     </label>`;
 }
 
+// Batch Plan / Batch Card: a unit this user is ticked for but that is no longer listed (plan section 16.3)
+// still gets a switch, so the tick can be seen and removed.
+function permissionMenuItems(g) {
+  if (g.key !== "batchPlan" && g.key !== "batchCard") return g.items;
+  const listed = new Set(g.items.map(([k]) => k));
+  const ticked = (permissionDraft && permissionDraft.menus[g.key]) || {};
+  const extra = Object.keys(ticked).filter((k) => ticked[k] === true && !listed.has(k) && /^[a-z0-9]{1,40}$/.test(k))
+    .map((k) => [k, k.toUpperCase() + " (not in use)"]);
+  return [...g.items, ...extra];
+}
+
 function renderMenuPermissions() {
   document.getElementById("permissionTab-menu").innerHTML =
     `<div><h3 class="font-black text-lg">Menu & Submenu Access</h3></div>` +
@@ -1255,7 +1270,7 @@ function renderMenuPermissions() {
       (g) => `
     <div class="permission-card rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div class="px-4 py-3 bg-slate-50 dark:bg-[#11151d] flex items-center justify-between"><h4 class="font-black text-sm"><i class="fa-solid ${g.icon} text-blue-500 w-5 mr-2"></i>${g.title}</h4></div>
-      <div class="p-3 grid md:grid-cols-2 gap-2">${g.items.map(([k, l]) => switchRow(`menus.${g.key}`, k, l, permissionDraft.menus[g.key][k])).join("")}</div>
+      <div class="p-3 grid md:grid-cols-2 gap-2">${permissionMenuItems(g).map(([k, l]) => switchRow(`menus.${g.key}`, k, l, permissionDraft.menus[g.key][k])).join("")}</div>
     </div>`,
     ).join("");
 }
@@ -1322,5 +1337,53 @@ function setAllPermissions(val) {
     .querySelectorAll(".perm-checkbox")
     .forEach((cb) => (cb.checked = val));
 }
+
+/* Plan section 16.3: Batch Plan and Batch Card permissions have one switch per Dyeing Plan unit
+   (Dropdown Master Setup units plus the units used in Batch Plan). A unit's key is made exactly as the
+   server's unitKey (lib/batch/source.js) does, in small letters: the demo's five floors keep their keys. */
+const BATCH_LEGACY_UNIT_ALIASES = {
+  EFL: ["EFL", "EFL Floor", "Epyllion Fabrics Limited"],
+  EKL: ["EKL", "EKL Floor", "Epyllion Knitex Limited"],
+  EXT: ["Ext", "Ext Floor", "EFL-Ext", "EFL Ext", "Extension", "Extension Floor"],
+  PLUVIA: ["Pluvia", "Pluvia Wash", "Pluvia Washing"],
+  OUTSIDE: ["Outside", "Outside Dyeing", "Outside Dyeing Floor", "Out Side", "Out Side Dyeing", "Outsource", "Outsourcing", "Subcontract", "Subcontract Dyeing"],
+};
+const BATCH_NO_UNIT_TEXTS = new Set(["-", "n/a", "na", "select", "null", "undefined", "none", "0"]);
+function batchUnitPermissionKey(name) {
+  const text = String(name ?? "").trim();
+  if (!text || text.includes("+") || BATCH_NO_UNIT_TEXTS.has(text.toLowerCase())) return "";
+  const key = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!key || key === "ALL") return "";
+  for (const [floor, aliases] of Object.entries(BATCH_LEGACY_UNIT_ALIASES)) {
+    if (aliases.some((alias) => alias.toUpperCase().replace(/[^A-Z0-9]/g, "") === key)) return floor.toLowerCase();
+  }
+  return key.slice(0, 40).toLowerCase();
+}
+async function loadBatchUnitPermissionItems() {
+  if (!localStorage.getItem("token")) return;
+  const units = new Map();
+  // Unit names come from Dropdown Master and the Dyeing file, and switchRow writes the label as HTML:
+  // only a plain unit key is taken, and characters that could form markup are dropped from the label.
+  const add = (key, label) => {
+    if (!/^[a-z0-9]{1,40}$/.test(key) || key === "all" || units.has(key)) return;
+    units.set(key, String(label || "").replace(/[<>&"'`]/g, "").trim() || key.toUpperCase());
+  };
+  try {
+    const res = await fetch("https://abir-backend-api.onrender.com/api/dropdowns");
+    if (res.ok) ((await res.json()).units || []).forEach((u) => add(batchUnitPermissionKey(u.name), u.name));
+  } catch (e) { console.warn("Dropdown units not loaded:", e); }
+  try {
+    const res = await fetch("https://abir-backend-api.onrender.com/api/batch/units");
+    if (res.ok) ((await res.json()).units || []).forEach((u) => add(String(u.key || "").toLowerCase(), u.label));
+  } catch (e) { console.warn("Batch units not loaded:", e); }
+  if (!units.size) return;
+  // The demo's five floor keys stay switchable, so an old tick (e.g. pluvia) can still be removed.
+  [["efl", "EFL"], ["ekl", "EKL"], ["ext", "Ext"], ["pluvia", "Pluvia"], ["outside", "Outside"]].forEach(([key, label]) => add(key, label));
+  // The permission switches are built from these items each time the permission builder opens.
+  MENU_GROUPS.filter((g) => g.key === "batchPlan" || g.key === "batchCard").forEach((g) => {
+    g.items = [["all", "All Orders"], ...Array.from(units, ([key, label]) => [key, label])];
+  });
+}
+loadBatchUnitPermissionItems();
 
 updateCreatePermissionSummary();

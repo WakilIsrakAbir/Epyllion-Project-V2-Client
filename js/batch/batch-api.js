@@ -6,7 +6,8 @@
    ========================================================== */
 const BatchApi = (() => {
   const API_BASE = "https://abir-backend-api.onrender.com";
-  const FLOORS = ["EFL", "EKL", "EXT", "PLUVIA", "OUTSIDE"];
+  // Unit keys of the current submenus (plan section 16.3): BATCH_FLOORS in batch-app.js, filled from the server.
+  const floorKeys = () => BATCH_FLOORS.map(floor => floor.key);
   let user = null;
 
   function token() { try { return localStorage.getItem("token") || ""; } catch (_) { return ""; } }
@@ -84,14 +85,16 @@ const BatchApi = (() => {
     };
   }
 
-  /* ---------- floor counts for the project sidebar ---------- */
+  /* ---------- unit list and counts for the project sidebar ---------- */
   function notifyCounts() {
     try {
       if (!storageReady || window.parent === window) return;
-      const plan = Object.fromEntries(FLOORS.map(f => [f, 0])), card = Object.fromEntries(FLOORS.map(f => [f, 0]));
+      const keys = floorKeys();
+      const plan = Object.fromEntries(keys.map(f => [f, 0])), card = Object.fromEntries(keys.map(f => [f, 0]));
       for (const booking of getStoredMasterList()) for (const floor of getOrderFloors(booking.number)) plan[floor]++;
       for (const scope of confirmedCardScopes(null)) if (scope.floor) card[scope.floor] = (card[scope.floor] || 0) + 1;
-      window.parent.postMessage({ type: "batch-counts", plan, card }, "*");
+      const units = BATCH_FLOORS.map(floor => ({ key: floor.key, label: floor.label }));
+      window.parent.postMessage({ type: "batch-counts", units, plan, card }, "*");
     } catch (error) { console.warn("Batch counts not sent:", error); }
   }
 
@@ -99,7 +102,16 @@ const BatchApi = (() => {
   // Views switch even when the data failed to load; every edit is still blocked until storageReady.
   function route() {
     const [section, sub] = decodeURIComponent((location.hash || "#plan").slice(1)).split("/");
-    const floor = FLOORS.includes(String(sub || "").toUpperCase()) ? String(sub).toUpperCase() : null;
+    let floor = floorKeys().includes(String(sub || "").toUpperCase()) ? String(sub).toUpperCase() : null;
+    // A unit that is no longer in the list (e.g. an open tab) opens the all-orders page for a user who may
+    // see all orders, else the first unit the user may open; the project's tab and sidebar follow it.
+    // A user with neither gets the all-orders page empty (getFloorBookings, renderCardRegister).
+    if (storageReady && sub && !floor && (section === "plan" || section === "card")) {
+      const group = section === "card" ? "batchCard" : "batchPlan";
+      const all = has("menus." + group + ".all");
+      if (!all) floor = floorKeys().find(key => has("menus." + group + "." + key.toLowerCase())) || null;
+      if (all || floor) syncRoute(floor ? section + "/" + floor : section);
+    }
     if (section === "card") { selectCardFloor(floor); return; }
     if (section === "setup") { selectSetupPanel(sub === "flat" ? "flat" : sub === "unit" ? "unit" : "dyeing"); return; }
     if (section === "report") {
