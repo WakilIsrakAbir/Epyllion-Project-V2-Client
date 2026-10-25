@@ -1183,6 +1183,10 @@ function readDBState() { return BatchApi.loadState(); }
 // the display is updated only after the server accepted the save (same as the demo).
 let planVersions = new Map();
 let settingVersions = {};
+// Unit Setup page (plan section 15.5): buyers and Dropdown Master units sent by GET /api/batch/state.
+let unitSetupBuyerNames = [];
+let unitSetupUnitOptions = [];
+let unitSetupDraft = null;
 async function commitChanges(changes) {
   const payload = { plans: [], settings: {}, cards: [] };
   if (changes.master) {
@@ -1220,7 +1224,7 @@ function setMutationBusy(busy) {
   }
   document.querySelectorAll('#machineSetupRows input,#machineSetupRows button').forEach(input => { input.disabled = busy || !storageReady; });
   document.querySelectorAll('[data-load-mc-id]').forEach(button => { button.disabled = busy || !storageReady || button.dataset.mcEligible !== 'true' || reportLocked; });
-  document.querySelectorAll('#unitSetupPanel button,#unitSetupRows input,#flatAllowanceRows input').forEach(input=>{input.disabled=busy || !storageReady;});
+  document.querySelectorAll('#unitSetupPanel button,#unitSetupRows input,#unitSetupRows select,#flatAllowanceRows input').forEach(input=>{input.disabled=busy || !storageReady;});
   $('machineEvaluationColour').disabled = busy || !storageReady;
   document.querySelectorAll('#tentativeQuestionnaire input,#tentativeQuestionnaire textarea,#btnCancelTentative').forEach(element=>{element.disabled=busy || !storageReady;});
   document.querySelectorAll('#reportContent [data-report-row-action],#reportContent [data-row-field],#reportContent [data-component-dyeing],#reportContent [data-cc-kind],#reportContent [data-cc-all],#reportContent [data-mode-fabric],#reportContent [data-mode-fabric-all]').forEach(element=>{element.disabled=busy || !storageReady || reportLocked;});
@@ -1273,6 +1277,9 @@ async function initializeStorage() {
     };
     planVersions = new Map(Object.entries(saved.planVersions || {}));
     settingVersions = { ...(saved.settingVersions || {}) };
+    unitSetupBuyerNames = Array.isArray(saved.buyers) ? saved.buyers : [];
+    unitSetupUnitOptions = Array.isArray(saved.units) ? saved.units : [];
+    unitSetupDraft = null;
     BatchApi.applyPermissions(saved.user);
     // Older confirmations without a snapshot are protected in memory (saved with the next change).
     const protectedMaster = getStoredMasterList().slice();
@@ -1282,6 +1289,9 @@ async function initializeStorage() {
     renderBatchRegister();
     renderFileList();
     setupDraft = null;
+    // Project: a reload (for example after a Unit Setup save) must not keep a Flat Allowance draft built from older data.
+    flatAllowanceDraft = null;
+    flatAllowanceDirty = false;
     renderMachineSetup();
   } catch (err) {
     loadError = err;
@@ -1368,8 +1378,9 @@ function normalizeBookingKey(value) {
     .replace(/^(BDS|PPS)[\s-]*/, '').replace(/^-+(?=\d)/, '');
 }
 
-/* Editable floor aliases. Column AC is authoritative; unknown/blank values
-   stay in the parent Batch Plan register until corrected and uploaded again. */
+/* Editable floor aliases. Project (plan section 15.4): the server writes each knitting row's floor
+   from the Dyeing Plan unit of its colour into _fabricColumns.floor (demo: Knitting column AC).
+   Unknown/blank values stay in the parent Batch Plan register until a unit is set. */
 const BATCH_FLOORS = [
   { key: 'EFL', label: 'EFL Floor', aliases: ['EFL', 'EFL Floor', 'Epyllion Fabrics Limited'] },
   { key: 'EKL', label: 'EKL Floor', aliases: ['EKL', 'EKL Floor', 'Epyllion Knitex Limited'] },
@@ -1470,19 +1481,21 @@ function updateFloorMenuCounts() {
 }
 function updateFloorScopeNote() {
   if (activeFloor) {
-    $('floorScopeNote').textContent = floorLabel(activeFloor) + ' · Items follow Knitting Plan column AC. Confirmed plans retain their saved floor items until explicitly re-confirmed.';
+    $('floorScopeNote').textContent = floorLabel(activeFloor) + ' · Items follow the Dyeing Plan unit of each colour. Confirmed plans retain their saved floor items until explicitly re-confirmed.';
   } else {
     ensureKnittingIndex();
     let unassigned = 0;
     for (const entry of knittingBookingIndex.values()) for (const row of entry.rows) if (!knittingRowFloor(row)) unassigned++;
     $('floorScopeNote').textContent = 'All orders · Choose a floor submenu for its assigned items.' +
-      (unassigned ? ` ${unassigned} item(s) have blank or unrecognized AC values; correct column AC and re-upload to assign them.` : '');
+      (unassigned ? ` ${unassigned} item(s) have no unit or a unit that is not a Batch floor; set the Unit in Dyeing Plan or the buyer's default in Unit Setup to assign them.` : '');
   }
 }
 function floorOrderLinks(number, floor = activeFloor, report = false) {
   const floors = getOrderFloors(number);
   if (floors.length < 2) return '';
-  const targets = floors.filter(key => key !== floor);
+  // Project: only floors the user may open (Batch Plan menu permission for that floor or all orders).
+  const targets = floors.filter(key => key !== floor && (BatchApi.has('menus.batchPlan.all') || BatchApi.has('menus.batchPlan.' + key.toLowerCase())));
+  if (!targets.length) return '';
   return `<div class="${report ? 'report-floor-links' : 'order-floor-links'}">${report ? '<span>Same order on:</span>' : ''}${targets.map(key =>
     `<button type="button" class="floor-jump" data-jump-floor="${key}" data-jump-order="${esc(number)}" title="Open order ${esc(number)} · ${esc(floorLabel(key))}">${esc(floorLabel(key))}</button>`
   ).join('')}</div>`;
@@ -1502,6 +1515,7 @@ function handleFloorOrderJump(event) {
   if (!BATCH_FLOORS.some(item => item.key === floor) || !hasOrderOnFloor(number, floor)) return true;
   selectFloor(floor);
   openBatchPlanReport(number);
+  BatchApi.syncRoute('plan/' + floor); // Project: highlight the same floor in the project sidebar.
   return true;
 }
 
@@ -5344,35 +5358,61 @@ $('reportContent').addEventListener('input',event=>{if(reportRowEditor?.kind==='
 $('reportContent').addEventListener('click',event=>{const button=event.target.closest('[data-general-action]');if(!button)return;if(button.dataset.generalAction==='edit')editGeneralInfo();else if(button.dataset.generalAction==='save')saveGeneralInfo();else{reportRowEditor=null;refreshEditableReport();}});
 
 const INITIAL_UNIT_SETUP=[['Australian Open','EKL'],['BESTSELLER','EKL'],['BONDS','EKL'],['C&A','EKL'],['Calvin Klein Jeans','EFL'],['CARHARTT','EKL'],['CELIO','EKL'],['CHAMPION AUSTRALIA','EKL'],['CHAMPION EUROPE','EFL'],['CHAMPION USA','EFL'],['Country Road','EFL'],['Express','EFL'],['Gildan','EFL'],['G-STAR','EFL'],['H&M','EFL'],['J.Crew','EKL'],['Klattermusen','EKL'],['Lands End','EFL'],['M&S','EKL'],['MEDICINE','EFL'],['NEXT','EKL'],['OBEY','EKL'],['ORIGINAL MARINES','EKL'],['Puma','EFL'],['Ralph Lauren','EFL'],['RAW-ASOS','EFL'],['RIVER ISLAND','EKL'],['S.OLIVER','EFL'],['Sportsgirl','EFL'],['Stanley Stella','EFL'],['TARGET AUSTRALIA','EKL'],['Tommy Hilfiger','EFL'],['Tommy Jeans','EFL'],['VARNER','EKL'],['VISTULA','EFL'],['VOGUE SOURCING LIMITED','EFL']].map(([buyer,unit],index)=>({id:'unit_'+(index+1),buyer,unit,hidden:false}));
-let unitSetupEditor=null;
 function getUnitSetup(){return appState.unitSetup || INITIAL_UNIT_SETUP;}
 function unitBuyerKey(value){return String(value || '').trim().replace(/\s+/g,' ').toUpperCase();}
 function unitForBuyer(buyer){return getUnitSetup().find(row=>!row.hidden && unitBuyerKey(row.buyer)===unitBuyerKey(buyer))?.unit || '';}
+/* Project (plan section 15.5): Unit Setup lists one row per buyer — every buyer in the uploaded
+   orders plus every buyer that already has a Unit Setup row. The default unit is chosen from the
+   ACTIVE units of Dropdown Master Setup; a saved unit that is no longer active stays selectable.
+   Changes are kept as a draft until Save Changes. Rows keep the demo shape {id,buyer,unit,hidden}. */
+function unitSetupBuyerList(){
+  const rows=new Map();
+  for(const row of getUnitSetup()){const key=unitBuyerKey(row.buyer);if(key && !rows.has(key))rows.set(key,{key,buyer:String(row.buyer).trim()});}
+  for(const name of unitSetupBuyerNames){const key=unitBuyerKey(name);if(key && !rows.has(key))rows.set(key,{key,buyer:String(name).trim()});}
+  return [...rows.values()].sort((a,b)=>a.buyer.localeCompare(b.buyer));
+}
+function unitSetupValue(key){return unitSetupDraft && unitSetupDraft.has(key)?unitSetupDraft.get(key):unitForBuyer(key);}
+function unitSetupOptions(current){
+  const active=unitSetupUnitOptions.filter(unit=>unit.status==='ACTIVE').map(unit=>unit.name);
+  const names=current && !active.some(name=>name.toLowerCase()===current.toLowerCase())?[current,...active]:active;
+  return '<option value="">— No default —</option>'+names.map(name=>'<option value="'+esc(name)+'"'+(current && name.toLowerCase()===current.toLowerCase()?' selected':'')+'>'+esc(name)+(active.includes(name)?'':' (inactive)')+'</option>').join('');
+}
 function renderUnitSetup(){
-  const query=unitBuyerKey($('unitSetupSearch').value),showHidden=$('unitSetupShowHidden').checked;
-  const rows=[...getUnitSetup(),...(unitSetupEditor?.isNew?[unitSetupEditor.row]:[])].filter(row=>unitSetupEditor?.row.id===row.id || ((!row.hidden || showHidden) && (!query || unitBuyerKey(row.buyer+' '+row.unit).includes(query))));
-  $('unitSetupRows').innerHTML=rows.map(row=>{const editing=unitSetupEditor?.row.id===row.id;return '<tr'+(row.hidden?' style="opacity:.6"':'')+'><td>'+(editing?'<input class="setup-input" data-unit-field="buyer" aria-label="Buyer" value="'+esc(unitSetupEditor.row.buyer)+'">':esc(row.buyer))+'</td><td>'+(editing?'<input class="setup-input" data-unit-field="unit" aria-label="Unit" value="'+esc(unitSetupEditor.row.unit)+'">':esc(row.unit))+'</td><td>'+(editing?'<button class="btn success" data-unit-action="save" data-unit-id="'+esc(row.id)+'">Save</button> <button class="btn secondary" data-unit-action="cancel">Cancel</button>':[['edit','Edit'],['toggle',row.hidden?'Unhide':'Hide'],['delete','Delete']].map(([action,label])=>'<button class="btn secondary" data-unit-action="'+action+'" data-unit-id="'+esc(row.id)+'" '+(mutationBusy?'disabled':'')+'>'+label+'</button>').join(' '))+(row.hidden?' <small>Hidden</small>':'')+'</td></tr>';}).join('') || '<tr><td colspan="3">No matching buyer–unit rows.</td></tr>';
-  $('unitSetupStatus').textContent=getUnitSetup().length+' rows · '+getUnitSetup().filter(row=>row.hidden).length+' hidden';
+  const query=unitBuyerKey($('unitSetupSearch').value),list=unitSetupBuyerList(),locked=mutationBusy || !storageReady || !BatchApi.has('menus.dataManagement.unitSetup');
+  const rows=list.filter(row=>!query || unitBuyerKey(row.buyer+' '+unitSetupValue(row.key)).includes(query));
+  $('unitSetupRows').innerHTML=rows.map(row=>'<tr><td>'+esc(row.buyer)+'</td><td><select class="setup-input" data-unit-buyer="'+esc(row.key)+'" aria-label="Default Unit for '+esc(row.buyer)+'"'+(locked?' disabled':'')+'>'+unitSetupOptions(unitSetupValue(row.key))+'</select></td></tr>').join('') || '<tr><td colspan="2">No matching buyer.</td></tr>';
+  $('unitSetupStatus').textContent=list.length+' buyers · '+list.filter(row=>unitSetupValue(row.key)).length+' with a default unit'+(unitSetupDraft?.size?' · Unsaved changes':' · Saved');
 }
-function editUnitSetup(id=null){if(!canChangeData() || mutationBusy)return false;if(unitSetupEditor){toast('Save or cancel the current row first.');return false;}const row=id?getUnitSetup().find(row=>row.id===id):{id:'unit_'+Date.now()+'_'+Math.random().toString(36).slice(2),buyer:'',unit:'',hidden:false};if(!row)return false;unitSetupEditor={row:copyReportData(row),isNew:!id};renderUnitSetup();return true;}
-async function saveUnitSetupRow(){
-  if(!canChangeData() || mutationBusy || !unitSetupEditor)return false;
-  $('unitSetupRows').querySelectorAll('[data-unit-field]').forEach(input=>unitSetupEditor.row[input.dataset.unitField]=input.value.trim());
-  const row=unitSetupEditor.row;if(!row.buyer || !row.unit){toast('Enter Buyer and Unit.');return false;}
-  if(getUnitSetup().some(other=>other.id!==row.id && unitBuyerKey(other.buyer)===unitBuyerKey(row.buyer))){toast('This buyer already has a Unit Setup row. Edit the existing row.');return false;}
-  const rows=copyReportData(getUnitSetup()),index=rows.findIndex(other=>other.id===row.id);if(index<0)rows.push(copyReportData(row));else rows[index]=copyReportData(row);
-  setMutationBusy(true);try{await commitChanges({unitSetup:rows});unitSetupEditor=null;renderUnitSetup();toast('Unit Setup row saved.');return true;}catch(error){showSaveError(error);return false;}finally{setMutationBusy(false);}
+function changeUnitSetupDefault(key,unit){
+  if(!unitSetupDraft)unitSetupDraft=new Map();
+  if(unit===unitForBuyer(key))unitSetupDraft.delete(key);else unitSetupDraft.set(key,unit);
+  renderUnitSetup();
 }
-async function changeUnitSetupRow(id,action){
-  if(!canChangeData() || mutationBusy)return false;if(unitSetupEditor){toast('Save or cancel the current row first.');return false;}const rows=copyReportData(getUnitSetup()),index=rows.findIndex(row=>row.id===id);if(index<0)return false;
-  if(action==='delete')rows.splice(index,1);else if(action==='toggle')rows[index].hidden=!rows[index].hidden;else return false;
-  setMutationBusy(true);try{await commitChanges({unitSetup:rows});renderUnitSetup();return true;}catch(error){showSaveError(error);return false;}finally{setMutationBusy(false);}
+async function saveUnitSetup(){
+  if(!canChangeData())return false;
+  if(!unitSetupDraft?.size){toast('No Unit Setup changes to save.');return false;}
+  const names=new Map(unitSetupBuyerList().map(row=>[row.key,row.buyer]));
+  let rows=copyReportData(getUnitSetup());
+  for(const [key,unit] of unitSetupDraft){
+    const index=rows.findIndex(row=>unitBuyerKey(row.buyer)===key);
+    if(!unit){rows=rows.filter(row=>unitBuyerKey(row.buyer)!==key);continue;}
+    if(index<0){rows.push({id:'unit_'+Date.now()+'_'+Math.random().toString(36).slice(2),buyer:names.get(key) || key,unit,hidden:false});continue;}
+    rows[index]={...rows[index],unit,hidden:false};
+    rows=rows.filter((row,position)=>position===index || unitBuyerKey(row.buyer)!==key);
+  }
+  let saved=false;
+  setMutationBusy(true);
+  try{await commitChanges({unitSetup:rows});unitSetupDraft=null;saved=true;}catch(error){showSaveError(error);}finally{setMutationBusy(false);}
+  if(!saved)return false;
+  toast('Unit Setup saved. Batch Plan floors are being updated.');
+  // Floors use these defaults when a colour has no Dyeing Plan unit (plan section 15.4), so load the data again.
+  await initializeStorage();
+  return true;
 }
 function generalPlanTimestamp(booking,floor,revised=false){const plan=savedReportPlan(currentReportBooking() || booking,floor);const value=revised?(plan.batchPlanRevisedAt || plan.lastReconfirmation?.savedAt):(plan.batchPlanCreatedAt || plan.confirmationHistory?.[0]?.confirmedAt);return value?dyeablePrintedAt(value):(revised?booking.revisedBatch:booking.batchDate) || '';}
 $('navUnitSetup').addEventListener('click',()=>selectSetupPanel('unit'));
-$('btnUnitAdd').addEventListener('click',()=>editUnitSetup());$('unitSetupSearch').addEventListener('input',renderUnitSetup);$('unitSetupShowHidden').addEventListener('change',renderUnitSetup);
-$('unitSetupRows').addEventListener('input',event=>{if(unitSetupEditor && event.target.matches('[data-unit-field]'))unitSetupEditor.row[event.target.dataset.unitField]=event.target.value;});
-$('unitSetupRows').addEventListener('click',event=>{const button=event.target.closest('[data-unit-action]');if(!button)return;const action=button.dataset.unitAction;if(action==='edit')editUnitSetup(button.dataset.unitId);else if(action==='save')saveUnitSetupRow();else if(action==='cancel'){unitSetupEditor=null;renderUnitSetup();}else changeUnitSetupRow(button.dataset.unitId,action);});
+$('btnSaveUnitSetup').addEventListener('click',()=>saveUnitSetup());$('unitSetupSearch').addEventListener('input',renderUnitSetup);
+$('unitSetupRows').addEventListener('change',event=>{const select=event.target.closest('[data-unit-buyer]');if(select)changeUnitSetupDefault(select.dataset.unitBuyer,select.value);});
 
 let dailyConfirmResult=null;
 const DAILY_CONFIRM_HEADERS=['Order number','Buyer','Unit','Batch plan status','Confirm batch Plan Date','Confirmed by'];

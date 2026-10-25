@@ -897,7 +897,7 @@ html,body{height:100%;overflow:hidden}
 
 </style>
 </head>
-<body>
+<body class="batch-loading">
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -1171,7 +1171,7 @@ html,body{height:100%;overflow:hidden}
         </div>
       </div>
     <!-- Flat Allowance setup uses its own saved record. -->
-    <div id="unitSetupPanel" class="card hidden"><div class="setup-toolbar"><h2>Unit Setup</h2><button id="btnUnitAdd" class="btn success">＋ Add Row</button></div><p><input id="unitSetupSearch" type="search" placeholder="Search buyer or unit" aria-label="Search Unit Setup"> <label><input id="unitSetupShowHidden" type="checkbox" checked> Show hidden rows</label></p><p id="unitSetupStatus" class="setup-status-bar"></p><div class="table-wrap freeze-pane"><table class="setup-table"><thead><tr><th>Buyer</th><th>Unit</th><th>Action</th></tr></thead><tbody id="unitSetupRows"></tbody></table></div></div>
+    <div id="unitSetupPanel" class="card hidden"><div class="setup-toolbar"><div><h2 style="margin:0;font-size:17px">Unit Setup</h2><p class="component-note">Every buyer in the uploaded orders. Choose a default unit from the active units in Dropdown Master Setup, then Save Changes.</p></div><button id="btnSaveUnitSetup" class="btn">Save Changes</button></div><p><input id="unitSetupSearch" type="search" placeholder="Search buyer or unit" aria-label="Search Unit Setup"></p><p id="unitSetupStatus" class="setup-status-bar"></p><div class="table-wrap freeze-pane"><table class="setup-table"><thead><tr><th>Buyer</th><th>Default Unit</th></tr></thead><tbody id="unitSetupRows"></tbody></table></div></div>
     <div id="flatAllowanceSetupPanel" class="card hidden">
       <div class="setup-toolbar"><div><h2 style="margin:0;font-size:17px">Flat Allowance</h2><p class="component-note">Edit any row, then Save Changes. A narrower range wins when rules overlap.</p></div><div class="btn-group-actions"><button class="btn success" id="btnInsertAllowance">＋ Insert New Row</button><button class="btn" id="btnSaveAllowance">Save Changes</button></div></div>
       <div class="setup-status-bar" id="flatAllowanceStatus">Saved</div>

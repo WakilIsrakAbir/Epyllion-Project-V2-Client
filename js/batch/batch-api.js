@@ -111,7 +111,9 @@ const BatchApi = (() => {
   }
   window.addEventListener("hashchange", route);
 
-  function ready() { showLoadError(""); buildBuyerPills(); route(); notifyCounts(); }
+  // The page stays hidden (body.batch-loading, css/batch.css) until the requested page is open.
+  function showPage() { document.body.classList.remove("batch-loading"); }
+  function ready() { showLoadError(""); buildBuyerPills(); route(); showPage(); notifyCounts(); }
 
   /* ---------- a banner that stays visible when the data could not be loaded ---------- */
   function showLoadError(message) {
@@ -126,9 +128,16 @@ const BatchApi = (() => {
     }
     banner.textContent = "Batch Plan data could not be loaded. " + message;
   }
-  function failed(error) { showLoadError((error && error.message) || String(error)); route(); }
+  function failed(error) { showLoadError((error && error.message) || String(error)); route(); showPage(); }
 
-  return { loadState, commit, applyPermissions, notifyCounts, ready, failed, route, has };
+  /* A floor-jump button opened the same order on another floor: tell the project page, so its
+     sidebar and tab follow. The hash is replaced without a hashchange, which would close the report. */
+  function syncRoute(newRoute) {
+    try { history.replaceState(null, "", "#" + newRoute); } catch (_) { /* ignore */ }
+    if (window.parent !== window) window.parent.postMessage({ type: "batch-route", route: newRoute }, "*");
+  }
+
+  return { loadState, commit, applyPermissions, notifyCounts, ready, failed, route, has, syncRoute };
 })();
 // Top-level const is not a window property; the project page (index.html) calls BatchApi.route().
 window.BatchApi = BatchApi;

@@ -5,6 +5,16 @@
 .sidebar { display: none !important; }
 .app { min-height: 100vh; }
 
+/* While the saved data loads, the demo's default page (Batch Plan list) is not shown, so a reload
+   on Setup, Batch Card or a report never shows the wrong page. batch-api.js removes the class
+   after the requested page is opened, or after a load error. */
+body.batch-loading .main > * { display: none !important; }
+body.batch-loading .main::before {
+  content: "Loading Batch Plan data…\A If the server was asleep, this can take up to a minute.";
+  white-space: pre-line; display: block; padding: 64px 24px; text-align: center;
+  color: #475569; font: 600 15px/1.8 system-ui, sans-serif;
+}
+
 body.perm-no-tentative #btnMakeTentative,
 body.perm-no-confirm #btnMakeConfirm,
 body.perm-no-pending #btnMovePending,
@@ -19,8 +29,7 @@ body.perm-no-dyeingmc #btnInsertMachine,
 body.perm-no-dyeingmc #btnSaveSetup,
 body.perm-no-flat #btnInsertAllowance,
 body.perm-no-flat #btnSaveAllowance,
-body.perm-no-unit #btnUnitAdd,
-body.perm-no-unit [data-unit-action],
+body.perm-no-unit #btnSaveUnitSetup,
 body.perm-no-plan-print #btnPrintReport,
 body.perm-no-plan-print #btnPreviewPrint,
 body.perm-no-card-print #btnPrintBatchCard,

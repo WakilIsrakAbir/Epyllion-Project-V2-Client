@@ -76,10 +76,26 @@ function showBatchModule(route, fromTab) {
   closeSidebarMobile();
 }
 
-// Floor counts sent by batch.html (Batch Plan: orders per floor; Batch Card: confirmed orders per floor).
+// A floor-jump button inside batch.html moved to another floor: show that route as the active tab
+// and sidebar item, without touching the iframe (it already shows the order there).
+function markBatchRoute(route) {
+  if (!BATCH_ROUTES[route]) return;
+  const [title, menuId, group, key] = BATCH_ROUTES[route];
+  if (!batchHasMenu(group, key)) return;
+  localStorage.setItem("activePage", JSON.stringify({ page: "batch", route }));
+  activeTabId = "batch:" + route;
+  if (!openTabs.find((t) => t.id === activeTabId)) openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
+  renderTabs();
+  setActiveSidebarMenu(menuId);
+}
+
+// Messages from batch.html: floor counts (Batch Plan: orders per floor; Batch Card: confirmed orders per floor)
+// and the route after a floor-jump button.
 window.addEventListener("message", (event) => {
   const frame = document.getElementById("batchModuleFrame");
-  if (!frame || event.source !== frame.contentWindow || !event.data || event.data.type !== "batch-counts") return;
+  if (!frame || event.source !== frame.contentWindow || !event.data) return;
+  if (event.data.type === "batch-route") { markBatchRoute(String(event.data.route || "")); return; }
+  if (event.data.type !== "batch-counts") return;
   for (const [kind, counts] of [["plan", event.data.plan || {}], ["card", event.data.card || {}]]) {
     for (const [floor, count] of Object.entries(counts)) {
       const span = document.querySelector(`[data-batch-count="${kind}-${floor}"]`);
@@ -170,6 +186,15 @@ function openBatchGroup(header, submenuId, route) {
     originalDirty.apply(this, arguments);
     batchDataStale = true;
   };
+  // Dropdown Master Setup (js/setup.js) changes the unit list used by Unit Setup and the floors:
+  // reload the Batch Plan page the next time it is opened.
+  for (const name of ["handleAddDropdownItem", "handleEditDropdownItem", "toggleDropdownItemStatus", "deleteDropdownItem"]) {
+    const original = window[name];
+    if (typeof original !== "function") continue;
+    window[name] = async function () {
+      try { return await original.apply(this, arguments); } finally { batchDataStale = true; }
+    };
+  }
   const originalInit = initDashboard;
   initDashboard = function () {
     // Read the saved page first: the original falls back to the dashboard and overwrites it.
