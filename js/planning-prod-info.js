@@ -235,9 +235,31 @@ function resolveDepartmentPlanInfo(
   const validStarts = [];
   const validEnds = [];
 
+  // A saved row is matched the same way the department screens (js/detailed-view.js) and the upload
+  // sync (routes/upload.js findMatchingPlan) match it: exact id, then the id without a trailing
+  // '_n/a' or '_', then by Color (dyeing/finishing) or YDB (yd). Without these steps one row that
+  // did not match made the whole department "Pending" with the T&A dates (plan section 17).
+  const findSaved = (item, itemId) => {
+    const exact = planMap.get(itemId);
+    if (exact || savedList.length === 0) return exact;
+    const cleanId = itemId.replace(/(_n\/a|_)$/i, "").toLowerCase();
+    for (const [id, p] of planMap) {
+      if (id.replace(/(_n\/a|_)$/i, "") === cleanId) return p;
+    }
+    if (dept === "dyeing" || dept === "finishing") {
+      const color = ppiGetString(item, ["Color", "Colour", "Fab Color", "color", "colour"]).toLowerCase();
+      if (color) return savedList.find((p) => ppiGetString(p.itemData || p, ["Color", "Colour", "Fab Color"]).toLowerCase() === color);
+    }
+    if (dept === "yd") {
+      const ydb = ppiGetString(item, ["YDB", "YD B"]).toLowerCase();
+      if (ydb && ydb !== "n/a") return savedList.find((p) => ppiGetString(p.itemData || p, ["YDB", "YD B"]).toLowerCase() === ydb);
+    }
+    return undefined;
+  };
+
   items.forEach((item, idx) => {
     const itemId = getPPIItemId(item, dept, orderNo) || `item_${idx}`;
-    const saved = planMap.get(itemId);
+    const saved = findSaved(item, itemId);
 
     if (saved) {
       matchCount++;
