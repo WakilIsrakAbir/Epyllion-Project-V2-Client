@@ -11,6 +11,12 @@
     <!-- PDF Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
+    <!-- Batch Plan module (plan section 18.10): its page and scripts are fetched at idle, so the first open is faster -->
+    <link rel="prefetch" href="batch.html">
+    <link rel="prefetch" href="css/batch.css">
+    <link rel="prefetch" href="js/batch/batch-api.js">
+    <link rel="prefetch" href="js/batch/batch-app.js">
+
     <!-- Prevent flash of wrong theme -->
     <script>
         (function() {
@@ -738,32 +744,14 @@
                         <li><a href="#" id="menu-delivery-manage"
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="loadMenuData('delivery', 'Delivery Plan', 'manage')">Delivery Plan</a></li>
-                        <!-- Batch Plan module: Batch Plan (additive) -->
-                        <li id="sidebarBatchPlanGroup">
-                            <div class="flex items-center justify-between pr-4 hover:bg-sidebarHover transition-colors">
-                                <a href="#" id="menu-batch-plan-all"
-                                    class="sidebar-menu-item submenu-item flex-1 block py-2 pl-11 border-l-4 border-transparent text-black hover:text-black transition-colors"
-                                    onclick="openBatchGroup(this.parentElement, 'batchPlanSubmenu', 'plan')">Batch Plan</a>
-                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200 cursor-pointer p-1"
-                                    onclick="toggleSubmenu(this.parentElement, 'batchPlanSubmenu')"></i>
-                            </div>
-                            <ul class="hidden" id="batchPlanSubmenu">
-                                <!-- One item per Dyeing Plan unit, built by js/batch-module.js (renderBatchUnitMenus). -->
-                            </ul>
-                        </li>
-                        <!-- Batch Plan module: Batch Card (additive) -->
-                        <li id="sidebarBatchCardGroup">
-                            <div class="flex items-center justify-between pr-4 hover:bg-sidebarHover transition-colors">
-                                <a href="#" id="menu-batch-card-all"
-                                    class="sidebar-menu-item submenu-item flex-1 block py-2 pl-11 border-l-4 border-transparent text-black hover:text-black transition-colors"
-                                    onclick="openBatchGroup(this.parentElement, 'batchCardSubmenu', 'card')">Batch Card</a>
-                                <i class="fas fa-chevron-left text-[10px] transition-transform duration-200 cursor-pointer p-1"
-                                    onclick="toggleSubmenu(this.parentElement, 'batchCardSubmenu')"></i>
-                            </div>
-                            <ul class="hidden" id="batchCardSubmenu">
-                                <!-- One item per Dyeing Plan unit, built by js/batch-module.js (renderBatchUnitMenus). -->
-                            </ul>
-                        </li>
+                        <!-- Batch Plan module: Batch Plan and Batch Card (additive). The Dyeing Plan units are tabs in
+                             the heading of batch.html (plan section 18), so these items have no submenu. -->
+                        <li id="sidebarBatchPlanGroup"><a href="#" id="menu-batch-plan-all"
+                                class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                onclick="showBatchModule(batchMenuRoute('plan'))">Batch Plan</a></li>
+                        <li id="sidebarBatchCardGroup"><a href="#" id="menu-batch-card-all"
+                                class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                onclick="showBatchModule(batchMenuRoute('card'))">Batch Card</a></li>
                     </ul>
                 </li>
 

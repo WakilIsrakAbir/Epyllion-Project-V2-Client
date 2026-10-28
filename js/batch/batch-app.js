@@ -1211,7 +1211,6 @@ async function commitChanges(changes) {
     Object.assign(settingVersions, result.settingVersions || {});
   }
   Object.assign(appState, changes);
-  BatchApi.notifyCounts();
 }
 function saveMasterList(master) { return commitChanges({ master }); }
 function saveStoredFiles(files) { return commitChanges({ files }); }
@@ -1490,27 +1489,103 @@ function getFloorBooking(booking, floor = activeFloor) {
     ...treatmentInfo(getReportKnittingRows(booking.number,floor)),...generalInfoOverrides(booking,floor)
   };
 }
-function getFloorBookings() {
+function getFloorBookings(floor = activeFloor) {
   // Project: the all-orders list is for users with the all-orders permission; a unit-only user who lands
   // there (a unit no longer in use) sees it empty.
-  if (!activeFloor && !BatchApi.has('menus.batchPlan.all')) return [];
+  if (!floor && !BatchApi.has('menus.batchPlan.all')) return [];
   return getStoredMasterList()
-    .filter(booking => !activeFloor || hasOrderOnFloor(booking.number, activeFloor))
-    .map(booking => getFloorBooking(booking));
+    .filter(booking => !floor || hasOrderOnFloor(booking.number, floor))
+    .map(booking => getFloorBooking(booking, floor));
 }
 function updateFloorMenuCounts() {
+  const master = getStoredMasterList();
   const counts = Object.fromEntries(BATCH_FLOORS.map(floor => [floor.key, 0]));
-  for (const booking of getStoredMasterList()) for (const floor of getOrderFloors(booking.number)) counts[floor]++;
-  document.querySelectorAll('[data-floor-count]').forEach(span => { span.textContent = counts[span.dataset.floorCount]; });
+  for (const booking of master) for (const floor of getOrderFloors(booking.number)) counts[floor]++;
+  // The All Orders tab (empty key) counts every order.
+  document.querySelectorAll('[data-floor-count]').forEach(span => { span.textContent = span.dataset.floorCount ? counts[span.dataset.floorCount] : master.length; });
 }
-function updateFloorScopeNote() {
+
+/* ---------- Project (plan section 18): unit tabs in the page heading and the all-units search ---------- */
+// The units the user may open on one page (menus.<group>.<unit> or the all-orders permission).
+function unitTabFloors(group) {
+  const all = BatchApi.has('menus.' + group + '.all');
+  return BATCH_FLOORS.filter(floor => all || BatchApi.has('menus.' + group + '.' + floor.key.toLowerCase()));
+}
+// The tab row under the heading: All Orders (all-orders permission only) and one tab per unit the user may
+// open. Batch Plan tabs carry data-floor / data-floor-count, Batch Card tabs data-card-floor /
+// data-card-floor-count, so the existing count updates fill them. Hidden on the other pages.
+function renderUnitTabs(view) {
+  const nav = $('unitTabs');
+  if (view !== 'batch' && view !== 'cards') { nav.classList.add('hidden'); nav.innerHTML = ''; return; }
+  const card = view === 'cards', group = card ? 'batchCard' : 'batchPlan';
+  const attr = card ? 'data-card-floor' : 'data-floor', countAttr = card ? 'data-card-floor-count' : 'data-floor-count';
+  const tabs = [];
+  if (BatchApi.has('menus.' + group + '.all')) tabs.push(`<button type="button" class="unit-tab" ${attr}="">All Orders <span ${countAttr}="">0</span></button>`);
+  for (const floor of unitTabFloors(group)) tabs.push(`<button type="button" class="unit-tab" ${attr}="${esc(floor.key)}" title="${esc(floor.label)}">${esc(floor.label)} <span ${countAttr}="${esc(floor.key)}">0</span></button>`);
+  nav.innerHTML = tabs.join('');
+  nav.setAttribute('aria-label', card ? 'Batch Card units' : 'Batch Plan units');
+  nav.classList.toggle('hidden', !tabs.length);
+  highlightUnitTabs(view);
+}
+// The open unit is highlighted; while the all-units search is on, it is only marked lightly, because the
+// list then shows every unit.
+function highlightUnitTabs(view) {
+  const card = view === 'cards';
+  const active = card ? activeCardFloor : activeFloor;
+  // With a plan open the list is not shown, so its unit is simply the active tab.
+  const searching = card ? isGlobalCardSearch() : isGlobalSearch() && $('reportContainer').classList.contains('hidden');
+  document.querySelectorAll('#unitTabs .unit-tab').forEach(button => {
+    const key = (card ? button.dataset.cardFloor : button.dataset.floor) || null;
+    button.classList.toggle('active', key === active && !searching);
+    button.classList.toggle('searching', key === active && searching);
+  });
+}
+function globalSearchTerm() { return $('globalSearchInput').value.trim().toLowerCase(); }
+function isGlobalSearch() { return !!globalSearchTerm(); }
+function isGlobalCardSearch() { return !!$('cardSearch').value.trim(); }
+function matchesGlobalSearch(booking, term) {
+  return (booking.number || '').toLowerCase().includes(term) || (booking.buyer || '').toLowerCase().includes(term);
+}
+/* The all-units search list: one row per (order, unit) for every unit the user may open, like the Need
+   Re-Confirm list (_registerFloor names the unit; the eye button opens that unit's plan). The all-orders
+   scope (_registerFloor null) is added only for an order whose whole-order plan is Tentative or Confirm, or
+   that has no unit at all, so unit-less orders stay findable without listing every order twice. */
+function globalSearchBookings() {
+  const floors = unitTabFloors('batchPlan').map(floor => floor.key);
+  const all = BatchApi.has('menus.batchPlan.all');
+  const rows = [];
+  for (const booking of getStoredMasterList()) {
+    const onFloors = getOrderFloors(booking.number);
+    for (const floor of floors) if (onFloors.includes(floor)) rows.push({ ...getFloorBooking(booking, floor), _registerFloor: floor });
+    if (all && (['Tentative', 'Confirm'].includes(booking.status) || !onFloors.length)) rows.push({ ...getFloorBooking(booking, null), _registerFloor: null });
+  }
+  return rows;
+}
+// Need Re-Confirm rows of every unit the user may open (the all-orders list's rule, limited to those units).
+function globalReconfirmBookings() {
+  const floors = unitTabFloors('batchPlan').map(floor => floor.key);
+  const all = BatchApi.has('menus.batchPlan.all');
+  const rows = [];
+  for (const booking of getStoredMasterList()) {
+    if (all && needsReconfirmation(booking, null)) { rows.push({ ...getFloorBooking(booking, null), _registerFloor: null }); continue; }
+    for (const floor of floors) if (needsReconfirmation(booking, floor)) rows.push({ ...getFloorBooking(booking, floor), _registerFloor: floor });
+  }
+  return rows;
+}
+function updateFloorScopeNote(search) {
+  if (search) {
+    const orders = new Set(search.list.map(b => normalizeBookingKey(b.number)));
+    const units = new Set(search.list.map(b => b._registerFloor || 'ALL'));
+    $('floorScopeNote').textContent = `Search results in all units for "${search.term}" · ${orders.size} order(s) in ${units.size} unit(s) · The eye button opens the plan of the unit named under the order. Clear the search to return to ${activeFloor ? floorLabel(activeFloor) : 'All orders'}.`;
+    return;
+  }
   if (activeFloor) {
     $('floorScopeNote').textContent = floorLabel(activeFloor) + ' · Items follow the Dyeing Plan unit of each colour. Confirmed plans retain their saved floor items until explicitly re-confirmed.';
   } else {
     ensureKnittingIndex();
     let unassigned = 0;
     for (const entry of knittingBookingIndex.values()) for (const row of entry.rows) if (!knittingRowFloor(row)) unassigned++;
-    $('floorScopeNote').textContent = 'All orders · Choose a floor submenu for its assigned items.' +
+    $('floorScopeNote').textContent = 'All orders · Choose a unit tab above for its assigned items.' +
       (unassigned ? ` ${unassigned} item(s) have no unit or a combined unit such as EKL+DTL; set one Unit in Dyeing Plan to assign them.` : '');
   }
 }
@@ -1953,7 +2028,9 @@ $('btnNextPage').addEventListener('click', () => {
 
 function updateStatusCounts() {
   updateFloorMenuCounts();
-  const master = getFloorBookings();
+  // Project (plan section 18): while the all-units search is on, the counts are the matches in every unit.
+  const term = globalSearchTerm();
+  const master = term ? globalSearchBookings().filter(b => matchesGlobalSearch(b, term)) : getFloorBookings();
   const pendingCount = master.filter(b => (b.status || 'Pending') === 'Pending').length;
   const confirmCount = master.filter(b => b.status === 'Confirm').length;
   const tentativeCount = master.filter(b => b.status === 'Tentative').length;
@@ -1961,13 +2038,15 @@ function updateStatusCounts() {
   $('countPending').textContent = pendingCount;
   $('countConfirm').textContent = confirmCount;
   $('countTentative').textContent = tentativeCount;
-  $('countNeedReconfirm').textContent = getReconfirmBookings().length;
+  $('countNeedReconfirm').textContent = (term ? globalReconfirmBookings().filter(b => matchesGlobalSearch(b, term)) : getReconfirmBookings()).length;
 }
 
 function renderBatchRegister() {
   updateStatusCounts();
-  const master = getFloorBookings();
-  updateFloorScopeNote();
+  // Project (plan section 18): the top search looks in every unit the user may open (globalSearchBookings);
+  // without a search text the list is the open unit's (or all orders).
+  const searching = isGlobalSearch();
+  const master = searching ? globalSearchBookings() : getFloorBookings();
   const showReconfirm = activeStatusTab==='NeedReconfirm';
   const showSaveAudit = showReconfirm || ['Tentative','Confirm'].includes(activeStatusTab);
   $('registerSavedByHeading').textContent=activeStatusTab==='Tentative' ? 'Tentative By' : 'Confirmed By';
@@ -1980,17 +2059,17 @@ function renderBatchRegister() {
   document.querySelector('.register-table').classList.toggle('has-reconfirmation', showReconfirm);
   
   // Filter by Active Tab (Pending, Confirm, Tentative)
-  let list = showReconfirm ? getReconfirmBookings() : master.filter(b => (b.status || 'Pending') === activeStatusTab);
+  let list = showReconfirm ? (searching ? globalReconfirmBookings() : getReconfirmBookings()) : master.filter(b => (b.status || 'Pending') === activeStatusTab);
 
   // Filter by Buyer Carousel
   if (activeBuyerFilter !== 'ALL') {
     list = list.filter(b => (b.buyer || '').trim().toUpperCase() === activeBuyerFilter);
   }
 
-  // Top Global Search
-  const globalQ = $('globalSearchInput').value.trim().toLowerCase();
+  // Top search (all units)
+  const globalQ = globalSearchTerm();
   if (globalQ) {
-    list = list.filter(b => (b.number || '').toLowerCase().includes(globalQ) || (b.buyer || '').toLowerCase().includes(globalQ));
+    list = list.filter(b => matchesGlobalSearch(b, globalQ));
   }
 
   // Column specific filters
@@ -2002,7 +2081,10 @@ function renderBatchRegister() {
   if (fDate) list = list.filter(b => (b.date || '').toLowerCase().includes(fDate));
   if (fBuyer) list = list.filter(b => (b.buyer || '').toLowerCase().includes(fBuyer));
 
-  const pageRows = paginateRegister(list, [activeFloor, activeStatusTab, activeBuyerFilter, globalQ, fOrder, fDate, fBuyer]);
+  updateFloorScopeNote(searching ? { term: $('globalSearchInput').value.trim(), list } : null);
+  highlightUnitTabs('batch');
+
+  const pageRows = paginateRegister(list, [searching ? 'ALL-UNITS' : activeFloor, activeStatusTab, activeBuyerFilter, globalQ, fOrder, fDate, fBuyer]);
   const tbody = $('batchRegisterRows');
   if (list.length === 0) {
     tbody.innerHTML = '';
@@ -2011,17 +2093,21 @@ function renderBatchRegister() {
   }
 
   $('tableEmptyState').classList.add('hidden');
+  // The unit under the order number: every search result names its unit (All Orders for the whole-order
+  // scope); the Need Re-Confirm list of all orders names the unit as before.
+  const unitName = b => searching ? (b._registerFloor ? floorLabel(b._registerFloor) : 'All Orders')
+    : (showReconfirm && !activeFloor && b._registerFloor ? floorLabel(b._registerFloor) : '');
   tbody.innerHTML = pageRows.map(b => `
     <tr>
       <td style="text-align:center">
-        <button class="btn-view-eye" data-booking="${esc(b.number)}" ${showReconfirm ? `data-booking-floor="${esc(b._registerFloor || 'ALL')}"` : ''} title="View Batch Plan for Order ${esc(b.number)}">
+        <button class="btn-view-eye" data-booking="${esc(b.number)}" ${showReconfirm || searching ? `data-booking-floor="${esc(b._registerFloor || 'ALL')}"` : ''} title="View Batch Plan for Order ${esc(b.number)}${searching ? ' · ' + esc(unitName(b)) : ''}">
           <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </td>
       <td>
         <span class="order-link">${esc(b.number)}</span>
-        ${showReconfirm && !activeFloor && b._registerFloor ? `<div class="register-floor-name">${esc(floorLabel(b._registerFloor))}</div>` : ''}
-        ${floorOrderLinks(b.number)}
+        ${unitName(b) ? `<div class="register-floor-name">${esc(unitName(b))}</div>` : ''}
+        ${searching ? '' : floorOrderLinks(b.number)}
       </td>
       <td>${esc(b.date || '—')}</td>
       <td><strong>${esc(b.buyer || '—')}</strong></td>
@@ -4227,7 +4313,7 @@ function generateBlankBatchPlanHtml(booking, floor = activeFloor) {
 
   const badgeClass = booking.status.toLowerCase();
   const formatNotice = isBlank 
-    ? `<div style="background:#fffbeb;border:1px solid #fef3c7;padding:10px 14px;border-radius:6px;font-size:12px;color:#92400e;margin-top:14px;font-weight:600">
+    ? `<div class="report-warning-note">
         ⓘ Pending Batch Plan: Showing deduplicated fabric structure from Knitting Plan. Use the action buttons above to transition this booking to Tentative or Confirm.
        </div>`
     : '';
@@ -4239,7 +4325,7 @@ function generateBlankBatchPlanHtml(booking, floor = activeFloor) {
       ${floorOrderLinks(booking.number, floor, true)}
       <div>
         <span class="report-status-badge ${badgeClass}">Current Status: ${esc(booking.status)}</span>
-        <span style="font-size:12px;color:#5c6f84;margin-left:10px">Buyer: <strong>${esc(booking.buyer)}</strong></span>
+        <span class="report-buyer-note">Buyer: <strong>${esc(booking.buyer)}</strong></span>
         ${batchPlanRevision(booking.number,floor) ? `<span class="report-revision">${esc(batchPlanRevision(booking.number,floor))}</span>` : ''}
       </div>
       ${formatNotice}
@@ -4300,6 +4386,7 @@ function openBatchPlanReport(number, {keepMachinePopup=false,reviewLatest=null} 
   $('batchCardView').classList.add('hidden');
   $('reportsView').classList.add('hidden');
   $('reportContainer').classList.remove('hidden');
+  highlightUnitTabs('batch'); // the open plan's unit is the active tab, even while a search text is kept for the list
   $('reportContent').scrollTop=0;
   setMutationBusy(mutationBusy);
 }
@@ -4593,7 +4680,12 @@ $('batchRegisterRows').addEventListener('click', e => {
   if (btn) {
     const bookingNo = btn.dataset.booking;
     const reviewLatest=activeStatusTab==='NeedReconfirm';
-    if(btn.dataset.bookingFloor)selectFloor(btn.dataset.bookingFloor==='ALL' ? null : btn.dataset.bookingFloor);
+    // A row of another unit (search result or the all-orders Need Re-Confirm list) opens that unit's plan;
+    // the unit tab, the project's tab and the saved page follow (plan section 18).
+    if(btn.dataset.bookingFloor){
+      const floor=btn.dataset.bookingFloor==='ALL' ? null : btn.dataset.bookingFloor;
+      if(floor!==activeFloor){selectFloor(floor);BatchApi.syncRoute(floor ? 'plan/'+floor : 'plan');}
+    }
     openBatchPlanReport(bookingNo,{reviewLatest});
   }
 });
@@ -4614,7 +4706,7 @@ function renderFileList() {
   $('noFilesMsg').classList.add('hidden');
   tbody.innerHTML = files.map(f => `
     <tr>
-      <td><span style="font-weight:700;color:#1e3a5f">${esc(f.category)}</span></td>
+      <td><span class="report-category">${esc(f.category)}</span></td>
       <td><strong>${esc(f.name)}</strong></td>
       <td>${esc(f.size)}</td>
       <td>${esc(f.uploadedBy)}</td>
@@ -4877,9 +4969,9 @@ function switchMainView(view) {
   $('reportContainer').classList.add('hidden');
   currentViewingNumber = null;
   currentViewingFloor = null;
-  document.querySelectorAll('#floorSubmenus .nav-floor').forEach(button => button.classList.toggle('active', view === 'batch' && button.dataset.floor === activeFloor));
+  renderUnitTabs(view); // Project (plan section 18): the unit tabs under the heading name the open unit.
   $('viewEyebrow').textContent = view === 'batch' ? 'Planning & Production Info' : 'Data Management';
-  $('viewTitle').textContent = view === 'upload' ? 'Source File Upload' : view === 'setup' ? 'Setup' : 'Batch Plan Generation' + (activeFloor ? ' · ' + floorLabel(activeFloor) : '');
+  $('viewTitle').textContent = view === 'upload' ? 'Source File Upload' : view === 'setup' ? 'Setup' : 'Batch Plan Generation';
   $('viewBadgeText').textContent = storageReady ? (view === 'batch' ? 'Active Register' : 'Storage Active') : 'Storage unavailable';
   $('navDailyConfirm').classList.toggle('active',view==='reports' && dyeableReportMode==='daily');
   $('navDyeableBatch').classList.toggle('active',view==='reports' && dyeableReportMode==='detail');
@@ -4888,7 +4980,7 @@ function switchMainView(view) {
     $('viewEyebrow').textContent='Reports';$('viewTitle').textContent=dyeableReportMode==='daily'?'Daily Confirm Batch Plan':dyeableReportMode==='summary'?'Dyeable Batch Summary':'Dyeable Batch';$('viewBadgeText').textContent=storageReady?'Report Preview':'Storage unavailable';renderDyeableReport();return;
   }
   if(view==='cards'){
-    $('viewEyebrow').textContent='Planning & Production Info';$('viewTitle').textContent='Batch Card'+(activeCardFloor?' · '+floorLabel(activeCardFloor):'');renderCardRegister();return;
+    $('viewEyebrow').textContent='Planning & Production Info';$('viewTitle').textContent='Batch Card';renderCardRegister();return;
   }
   if (view === 'upload') renderFileList();
   else if (view === 'setup') renderSetupPanels();
@@ -4898,9 +4990,20 @@ function switchMainView(view) {
 $('navUpload').addEventListener('click', () => switchMainView('upload'));
 $('navSetup').addEventListener('click', () => switchMainView('setup'));
 $('navBatch').addEventListener('click', () => selectFloor(null));
-$('floorSubmenus').addEventListener('click', event => {
-  const button = event.target.closest('[data-floor]');
-  if (button) selectFloor(button.dataset.floor);
+// Project (plan section 18): a unit tab under the heading opens that unit's list (Batch Plan or Batch Card)
+// and tells the project page, so its tab, sidebar highlight and saved page follow.
+$('unitTabs').addEventListener('click', event => {
+  const button = event.target.closest('.unit-tab');
+  if (!button) return;
+  if (button.hasAttribute('data-card-floor')) {
+    const floor = button.dataset.cardFloor || null;
+    selectCardFloor(floor);
+    BatchApi.syncRoute(floor ? 'card/' + floor : 'card');
+  } else {
+    const floor = button.dataset.floor || null;
+    selectFloor(floor);
+    BatchApi.syncRoute(floor ? 'plan/' + floor : 'plan');
+  }
 });
 
 /* Batch cards are immutable snapshots of confirmed plans, versioned on regeneration. */
@@ -4972,16 +5075,23 @@ function renderCardRegister(){
   currentCardOrder=null;currentCardRecordId=null;
   $('cardRegisterPanel').classList.remove('hidden');$('cardOrderPanel').classList.add('hidden');$('cardPreviewPanel').classList.add('hidden');
   // Project: like getFloorBookings, all cards are listed only for users with the all-orders Batch Card permission.
+  // Plan section 18: while the search box has a text, the list covers every unit the user may open
+  // (and the whole-order cards with the all-orders permission); the Floor column names the unit.
+  const search=$('cardSearch').value.trim().toLowerCase();
   const allowed=!!activeCardFloor || BatchApi.has('menus.batchCard.all');
-  const scopes=allowed?confirmedCardScopes():[],records=allowed?getBatchCards().filter(card=>card.status!=='superseded' && (!activeCardFloor || card.floor===activeCardFloor)):[];
+  const searchFloors=search?new Set(unitTabFloors('batchCard').map(floor=>floor.key)):null;
+  const inSearchScope=floor=>floor?searchFloors.has(floor):BatchApi.has('menus.batchCard.all');
+  const scopes=search?confirmedCardScopes(null).filter(scope=>inSearchScope(scope.floor)):allowed?confirmedCardScopes():[];
+  const records=getBatchCards().filter(card=>card.status!=='superseded' && (search?inSearchScope(card.floor):allowed && (!activeCardFloor || card.floor===activeCardFloor)));
   const completed=records.filter(card=>!batchCardRevisionReason(card)),revisions=records.filter(card=>!!batchCardRevisionReason(card)),partial=[];
   for(const scope of scopes){const plan=confirmedCardPlan(scope.booking,scope.floor),created=new Set(records.filter(card=>normalizeBookingKey(card.number)===normalizeBookingKey(scope.booking.number) && card.floor===scope.floor).map(card=>card.batchId));if(created.size && plan.entries.some(entry=>created.has(entry.id)))for(const entry of plan.entries)if(!created.has(entry.id))partial.push({...scope,plan,entry});}
   $('cardCountPending').textContent=scopes.length;$('cardCountPartial').textContent=partial.length;$('cardCountCompleted').textContent=completed.length;$('cardCountRevision').textContent=revisions.length;
   document.querySelectorAll('[data-card-status]').forEach(button=>button.classList.toggle('active',button.dataset.cardStatus===activeCardStatus));
-  document.querySelectorAll('[data-card-floor]').forEach(button=>button.classList.toggle('active',button.dataset.cardFloor===activeCardFloor));
-  const counts=new Map();for(const scope of confirmedCardScopes(null))counts.set(scope.floor,(counts.get(scope.floor) || 0)+1);document.querySelectorAll('[data-card-floor-count]').forEach(span=>span.textContent=counts.get(span.dataset.cardFloorCount) || 0);
+  highlightUnitTabs('cards');
+  // Unit tab counts: confirmed orders per unit; the All Orders tab (empty key) counts every confirmed scope.
+  const allScopes=confirmedCardScopes(null),counts=new Map();for(const scope of allScopes)counts.set(scope.floor,(counts.get(scope.floor) || 0)+1);document.querySelectorAll('[data-card-floor-count]').forEach(span=>span.textContent=span.dataset.cardFloorCount?(counts.get(span.dataset.cardFloorCount) || 0):allScopes.length);
   let rows=activeCardStatus==='Pending'?scopes:activeCardStatus==='Partial'?partial:activeCardStatus==='Completed'?completed:revisions;
-  const search=$('cardSearch').value.trim().toLowerCase();if(search)rows=rows.filter(row=>{const booking=row.booking || row.snapshot?.header || sourceBooking(row.number) || {};return [booking.number,booking.buyer,row.entry?.id,row.batchId].some(value=>String(value || '').toLowerCase().includes(search));});
+  if(search)rows=rows.filter(row=>{const booking=row.booking || row.snapshot?.header || sourceBooking(row.number) || {};return [booking.number,booking.buyer,row.entry?.id,row.batchId].some(value=>String(value || '').toLowerCase().includes(search));});
   const total=rows.length,size=cardPageSize==='All'?Math.max(1,total):Number(cardPageSize),pages=Math.max(1,Math.ceil(total/size));cardPage=Math.max(1,Math.min(cardPage,pages));const visible=cardPageSize==='All'?rows:rows.slice((cardPage-1)*size,cardPage*size);
   $('cardPageInfo').textContent='Page '+cardPage+' of '+pages+' · '+total+' '+(activeCardStatus==='Pending'?'orders':'batches');$('cardPrevious').disabled=cardPage<=1;$('cardNext').disabled=cardPage>=pages;
   const headers=activeCardStatus==='Pending'?['Manage','Order/Booking No.','Floor','Booking Date','Buyer','Confirmed By','Last Save','Cards generated']:activeCardStatus==='Partial'?['Manage','Order/Booking No.','Floor','Buyer','Batch #','Color','Qty (kg)','Flat Qty (pcs)','Revision']:['Manage','Order/Booking No.','Floor','Buyer','Batch #','Color','Generated By','Generated At','Revision',...(activeCardStatus==='Revision' ? ['Reason']:[])];
@@ -4995,7 +5105,7 @@ function renderCardRegister(){
   });
   if(!html.length)html.push(`<tr><td colspan="${headers.length}" class="placeholder-cell">No matching ${activeCardStatus==='Pending'?'confirmed orders':'batches'}.</td></tr>`);
   $('cardRegisterTable').innerHTML=table(headers,html,'grid-table card-list-table');
-  $('cardScopeLabel').textContent='Batch Card · '+floorLabel(activeCardFloor)+' · Confirmed plans are read-only here. Pending shows confirmed orders; Partial lists ungenerated batches from orders with cards already generated.';
+  $('cardScopeLabel').textContent=(search?'Search results in all units for "'+$('cardSearch').value.trim()+'" · '+total+' '+(activeCardStatus==='Pending'?'order(s)':'batch(es)')+' · The Floor column names the unit. Clear the search to return to '+floorLabel(activeCardFloor)+'.':'Batch Card · '+floorLabel(activeCardFloor))+' · Confirmed plans are read-only here. Pending shows confirmed orders; Partial lists ungenerated batches from orders with cards already generated.';
 }
 function cardGenerateButton(booking,floor,plan,entry){
   const ready=cardReady(booking,floor,plan);
@@ -5060,7 +5170,6 @@ async function retireBatchCard(id){
   record.status='superseded';setMutationBusy(true);try{await commitChanges({cards:records});renderCardRegister();toast('Previous card retained as superseded.');return true;}catch(error){showSaveError(error);return false;}finally{setMutationBusy(false);}
 }
 $('navBatchCard').addEventListener('click',()=>selectCardFloor(null));
-$('cardFloorSubmenus').addEventListener('click',event=>{const button=event.target.closest('[data-card-floor]');if(button)selectCardFloor(button.dataset.cardFloor);});
 $('batchCardView').addEventListener('click',event=>{
   const button=event.target.closest('button');if(!button)return;
   if(button.dataset.cardStatus){activeCardStatus=button.dataset.cardStatus;cardPage=1;renderCardRegister();}

@@ -1,19 +1,39 @@
 /* Batch Plan module page (batch.html) — project integration styles.
    Navigation lives in the project sidebar, so the demo's own sidebar is hidden.
    Buttons are hidden when the user lacks the matching permission; the server
-   checks the same permissions on every save. */
+   checks the same permissions on every save.
+   Plan section 18.10: the project's loading spinner and the dark theme (html.dark,
+   set from the project's theme-preference) live here too. */
 .sidebar { display: none !important; }
 .app { min-height: 100vh; }
 
-/* While the saved data loads, the demo's default page (Batch Plan list) is not shown, so a reload
-   on Setup, Batch Card or a report never shows the wrong page. batch-api.js removes the class
-   after the requested page is opened, or after a load error. */
-body.batch-loading .main > * { display: none !important; }
-body.batch-loading .main::before {
-  content: "Loading Batch Plan data…\A If the server was asleep, this can take up to a minute.";
-  white-space: pre-line; display: block; padding: 64px 24px; text-align: center;
-  color: #475569; font: 600 15px/1.8 system-ui, sans-serif;
+/* ---------- Loading: the project's spinner while /api/batch/state loads (plan section 18.10) ----------
+   The demo's default page is not shown before the requested page is open, so a reload on Setup,
+   Batch Card or a report never shows the wrong page. batch-api.js removes body.batch-loading after
+   the requested page is opened, or after a load error. */
+#batchLoading { display: none; }
+body.batch-loading .main > :not(#batchLoading) { display: none !important; }
+body.batch-loading #batchLoading {
+  display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+#batchLoading h3 { margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; }
+#batchLoading p { margin: 6px 0 0; font-size: 13px; color: #64748b; }
+#batchLoading .batch-loading-hint { margin-top: 14px; font-size: 12px; color: #94a3b8; min-height: 18px; max-width: 420px; }
+.batch-spinner { position: relative; width: 56px; height: 56px; margin-bottom: 16px; }
+.batch-spinner > div { position: absolute; border-radius: 50%; }
+.batch-spinner .ring-base { inset: 0; border: 4px solid #e5e7eb; }
+.batch-spinner .ring-a { inset: 0; border: 4px solid transparent; border-top-color: #10b981; border-right-color: #10b981; animation: batch-spin 1s linear infinite; }
+.batch-spinner .ring-b { inset: 8px; border: 4px solid transparent; border-bottom-color: #3b82f6; border-left-color: #3b82f6; animation: batch-spin 1.5s linear infinite reverse; }
+.batch-spinner .dot { width: 16px; height: 16px; left: 20px; top: 20px; background: #f97316; animation: batch-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+@keyframes batch-spin { to { transform: rotate(360deg); } }
+@keyframes batch-pulse { 50% { opacity: .45; } }
+@media print { #batchLoading { display: none !important; } }
+
+/* Small report texts that were inline styles in the demo (so the dark theme can restyle them). */
+.report-warning-note { background: #fffbeb; border: 1px solid #fef3c7; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #92400e; margin-top: 14px; font-weight: 600; }
+.report-buyer-note { font-size: 12px; color: #5c6f84; margin-left: 10px; }
+.report-category { font-weight: 700; color: #1e3a5f; }
 
 body.perm-no-tentative #btnMakeTentative,
 body.perm-no-confirm #btnMakeConfirm,
@@ -38,3 +58,149 @@ body.perm-no-summary-excel #btnDownloadDyeableSummary,
 body.perm-no-summary-excel #btnPrintDyeableSummary,
 body.perm-no-daily-excel #dailyConfirmExport,
 body.perm-no-daily-excel #dailyConfirmPrint { display: none !important; }
+
+/* ==========================================================================================
+   DARK THEME (plan section 18.10) — same palette as the project's "premium dark mode" in index.html:
+   page #0f1117, surfaces #181c25 / #151921, raised #1e2330, borders #1e2536 / #2a3346,
+   text #e2e8f0, muted #94a3b8, accent emerald #10b981. Screen only: printing keeps the light
+   layout, and the three print previews (Batch Plan preview page, Batch Card, Dyeable Batch
+   Summary paper) stay white on screen like printed paper.
+   ========================================================================================== */
+@media screen {
+html.dark {
+  color-scheme: dark;
+  --navy-dark: #131620; --navy-accent: #1a2030;
+  --primary-blue: #10b981; --primary-hover: #059669; --btn-active: #10b981;
+  --text-dark: #e2e8f0; --text-muted: #94a3b8;
+  --bg-page: #0f1117; --bg-card: #181c25;
+  --border-color: #2a3346; --border-light: #1e2536; --row-alt: #13161e; --accent-cyan: #34d399;
+}
+html.dark body { background: #0f1117 !important; color: #e2e8f0 !important; }
+html.dark #batchLoadError { background: rgba(239, 68, 68, 0.12) !important; color: #fca5a5 !important; border-bottom-color: rgba(239, 68, 68, 0.35) !important; }
+
+/* Loading */
+html.dark #batchLoading h3 { color: #e2e8f0; }
+html.dark #batchLoading p { color: #94a3b8; }
+html.dark #batchLoading .batch-loading-hint { color: #64748b; }
+html.dark .batch-spinner .ring-base { border-color: #374151; }
+
+/* Heading, badge, unit tabs */
+html.dark h1 { color: #f8fafc !important; }
+html.dark .eyebrow { color: #64748b !important; }
+html.dark .badge { background: rgba(16, 185, 129, 0.14) !important; color: #34d399 !important; border-color: rgba(16, 185, 129, 0.35) !important; }
+html.dark .unit-tab, html.dark .status-btn, html.dark .btn-clear, html.dark .carousel-btn, html.dark .buyer-btn, html.dark .floor-jump, html.dark .tab-pill {
+  background: #1e2330 !important; color: #cbd5e1 !important; border-color: #2a3346 !important;
+}
+html.dark .unit-tab:hover, html.dark .status-btn:hover, html.dark .btn-clear:hover, html.dark .carousel-btn:hover, html.dark .buyer-btn:hover, html.dark .floor-jump:hover { background: #252b3b !important; color: #f8fafc !important; }
+html.dark .btn-clear:hover { color: #f87171 !important; }
+html.dark .unit-tab.active, html.dark .status-btn.active, html.dark .buyer-btn.active, html.dark .tab-pill.active { background: #10b981 !important; color: #ffffff !important; border-color: #10b981 !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }
+html.dark .unit-tab.searching { background: rgba(16, 185, 129, 0.18) !important; color: #6ee7b7 !important; border-color: rgba(16, 185, 129, 0.45) !important; }
+html.dark .unit-tab span, html.dark .status-count { background: rgba(255, 255, 255, 0.08) !important; }
+html.dark .unit-tab.active span, html.dark .status-btn.active .status-count { background: rgba(255, 255, 255, 0.22) !important; }
+
+/* Cards, filter bars, notes */
+html.dark .card { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45) !important; }
+html.dark .buyer-carousel-wrap, html.dark .setup-status-bar, html.dark .report-toolbar, html.dark .card-view-toolbar, html.dark .machine-popup-header, html.dark .batch-plan-preview-toolbar { background: #151921 !important; }
+html.dark .report-toolbar, html.dark .card-view-toolbar { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45) !important; }
+html.dark .floor-scope-note { background: rgba(16, 185, 129, 0.07) !important; color: #94a3b8 !important; }
+html.dark .search-icon { color: #34d399 !important; }
+html.dark .btn-search-action { background: #10b981 !important; color: #fff !important; }
+html.dark .btn-search-action:hover { background: #059669 !important; }
+html.dark .empty-state, html.dark .placeholder-cell, html.dark .register-floor-name, html.dark .print-note, html.dark .component-note, html.dark .fabric-picker-footer span, html.dark .fabric-picker-empty, html.dark .machine-evaluation-panel p, html.dark .machine-popup-controls p, html.dark .dyeable-report-footer, html.dark .dyeable-report-note, html.dark .dyeable-report-intro p, html.dark .batch-plan-preview-toolbar p, html.dark .tentative-context { color: #64748b !important; }
+html.dark .allowance-summary, html.dark .knit-allocation-note, html.dark .component-weight-input, html.dark .tall-big-steps, html.dark .cc-mode-popover small, html.dark .dyeable-report-toolbar p, html.dark .file-display, html.dark #cardRevisionNotice, html.dark .machine-popup-status, html.dark .report-revision, html.dark .report-buyer-note, html.dark .fabric-rule-help { color: #94a3b8 !important; }
+
+/* Inputs and selects (the project's dark input look) */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), html.dark select, html.dark textarea,
+html.dark .search-input-top, html.dark .col-search-input, html.dark .setup-input, html.dark .page-size-select, html.dark .report-row-input,
+html.dark .component-dyeing-control select, html.dark .tall-big-control select, html.dark .tall-big-select, html.dark .machine-evaluation-panel select, html.dark .machine-popup-controls select, html.dark .tentative-panel textarea, html.dark .cc-mode-popover input[type=search], html.dark .tall-big-popup input[type=number] {
+  background: #1e2330 !important; color: #e2e8f0 !important; border-color: #2a3346 !important;
+}
+html.dark input:focus, html.dark select:focus, html.dark textarea:focus { outline-color: #10b981 !important; border-color: #10b981 !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important; }
+html.dark input::placeholder, html.dark textarea::placeholder, html.dark .col-search-input::placeholder { color: #475569 !important; }
+html.dark .setup-input:disabled { background: #13161e !important; opacity: .7; }
+html.dark .tall-big-select:invalid { border-color: #d97706 !important; background: rgba(245, 158, 11, 0.12) !important; }
+html.dark .tentative-options input { background: #1e2330 !important; border-color: #3b4560 !important; }
+html.dark .tentative-options input:checked { background: #10b981 !important; border-color: #10b981 !important; }
+html.dark .tentative-options input:focus-visible { outline-color: #10b981 !important; }
+html.dark .dyeable-multi-options input { accent-color: #10b981; }
+
+/* Register and other tables */
+html.dark .register-table thead tr:first-child th, html.dark .freeze-pane thead, html.dark .setup-table th, html.dark .card-list-table th, html.dark .dyeable-table th, html.dark .machine-popup-table thead,
+html.dark #reportContent .info-table th, html.dark #reportContent .grid-table th, html.dark #dailyConfirmPanel th { background: #151921 !important; color: #cbd5e1 !important; border-color: #2a3346 !important; }
+html.dark .freeze-pane thead th { box-shadow: 0 1px 0 #2a3346 !important; }
+html.dark .filter-row th, html.dark .freeze-pane .filter-row th { background: #181c25 !important; }
+html.dark .register-table th, html.dark .register-table td, html.dark .setup-table th, html.dark .setup-table td, html.dark .card-list-table th, html.dark .card-list-table td, html.dark .dyeable-table th, html.dark .dyeable-table td, html.dark #reportContent th, html.dark #reportContent td, html.dark #dailyConfirmPanel th, html.dark #dailyConfirmPanel td, html.dark .machine-popup-table th, html.dark .machine-popup-table td { border-color: #1e2536 !important; }
+html.dark tbody tr:nth-child(even), html.dark .dyeable-table tbody tr:nth-child(even) { background: #13161e !important; }
+html.dark tbody tr:hover { background: rgba(16, 185, 129, 0.08) !important; }
+html.dark .dyeable-table { background: #181c25 !important; }
+html.dark #dyeableReportTable, html.dark .dyeable-filter-summary { border-color: #1e2536 !important; }
+html.dark .dyeable-filter-summary { background: #151921 !important; color: #94a3b8 !important; }
+html.dark #reportContent .info-table td { color: #e2e8f0 !important; }
+html.dark .component-total, html.dark #reportContent .component-total td { background: #1e2330 !important; }
+html.dark .machine-selected td, html.dark #reportContent .machine-selected td { background: rgba(16, 185, 129, 0.18) !important; }
+html.dark .machine-recommended td, html.dark #reportContent .machine-recommended td { background: rgba(59, 130, 246, 0.12) !important; }
+html.dark .report-row-editing td, html.dark #reportContent .report-row-editing td { background: rgba(245, 158, 11, 0.12) !important; }
+html.dark .report-row-manual td, html.dark #reportContent .report-row-manual td { background: rgba(59, 130, 246, 0.08) !important; }
+
+/* Links, action buttons */
+html.dark .order-link, html.dark .mc-accent, html.dark .manual-row-label, html.dark [style*="color:#1d5ab2"] { color: #34d399 !important; }
+html.dark .btn-view-eye { background: rgba(16, 185, 129, 0.15) !important; border-color: rgba(16, 185, 129, 0.35) !important; color: #34d399 !important; }
+html.dark .btn-view-eye:hover { background: #10b981 !important; color: #fff !important; border-color: #10b981 !important; }
+html.dark .btn.secondary { background: #1e2330 !important; color: #cbd5e1 !important; border-color: #2a3346 !important; }
+html.dark .btn.secondary:hover { background: #252b3b !important; color: #f8fafc !important; }
+html.dark .file-btn { background: #1e2330 !important; color: #6ee7b7 !important; }
+html.dark .file-btn:hover { background: #252b3b !important; }
+html.dark .file-bar { background: #151921 !important; border-color: #2a3346 !important; }
+html.dark .loading-val, html.dark .row-edit-error, html.dark .tentative-error, html.dark .fabric-rule-error { color: #f87171 !important; }
+html.dark .row-edit-label { color: #fdba74 !important; }
+html.dark .report-category { color: #e2e8f0 !important; }
+html.dark .toast { background: #1e2330 !important; border: 1px solid #2a3346; color: #e2e8f0 !important; }
+
+/* Status pills and badges */
+html.dark .status-pill-small.pending, html.dark .report-status-badge.pending, html.dark .knit-unknown, html.dark .knit-cc, html.dark .component-separate-label { background: rgba(234, 179, 8, 0.16) !important; color: #fde68a !important; border-color: rgba(234, 179, 8, 0.35) !important; }
+html.dark .status-pill-small.tentative, html.dark .report-status-badge.tentative { background: rgba(59, 130, 246, 0.16) !important; color: #93c5fd !important; border-color: rgba(59, 130, 246, 0.35) !important; }
+html.dark .status-pill-small.confirm, html.dark .report-status-badge.confirm, html.dark .knit-ready { background: rgba(16, 185, 129, 0.16) !important; color: #6ee7b7 !important; border-color: rgba(16, 185, 129, 0.35) !important; }
+html.dark .knit-short { background: rgba(239, 68, 68, 0.16) !important; color: #fca5a5 !important; }
+html.dark .knit-empty { background: #1e2330 !important; color: #94a3b8 !important; }
+
+/* Notices */
+html.dark .batch-calculation-note, html.dark .reconfirm-review-notice, html.dark .report-warning-note, html.dark .confirmed-readonly-notice, html.dark .internal-change-notice { background: rgba(245, 158, 11, 0.1) !important; border-color: rgba(245, 158, 11, 0.35) !important; color: #fdba74 !important; }
+html.dark .manual-report-notice, html.dark .tentative-reason-notice { background: #1e2330 !important; border-color: #2a3346 !important; color: #cbd5e1 !important; }
+html.dark .tall-big-allocation-note { background: rgba(59, 130, 246, 0.1) !important; color: #93c5fd !important; }
+html.dark .tall-big-errors { background: rgba(239, 68, 68, 0.1) !important; border-color: rgba(239, 68, 68, 0.35) !important; color: #fca5a5 !important; }
+html.dark .tall-big-steps .active { background: rgba(16, 185, 129, 0.15) !important; color: #6ee7b7 !important; }
+
+/* The live Batch Plan report (#reportContent); the print preview page stays white paper */
+html.dark #reportContent .report-title h2, html.dark .dyeable-report-intro h2, html.dark .dyeable-report-toolbar h2, html.dark .tentative-panel h3, html.dark .fabric-picker-panel h3, html.dark .machine-popup-header h3, html.dark .batch-plan-preview-toolbar h3, html.dark #cardOrderContent h2 { color: #f8fafc !important; }
+html.dark #reportContent .report-title h3 { color: #cbd5e1 !important; }
+html.dark #reportContent .section h3, html.dark .fabric-rule-heading { background: #1e2330 !important; color: #e2e8f0 !important; border-color: #2a3346 !important; }
+html.dark #reportContent .section h3 { border-left-color: #10b981 !important; }
+html.dark #reportContent .report-title { border-bottom-color: #10b981 !important; }
+html.dark .machine-evaluation-panel { background: #151921 !important; border-color: #2a3346 !important; }
+html.dark .machine-evaluation-panel summary, html.dark .tentative-panel legend, html.dark .tentative-other-label, html.dark .dyeable-filter-grid label, html.dark .dyeable-filter-field, html.dark .fabric-choice, html.dark .dyeable-multi summary, html.dark .dyeable-multi-options label, html.dark .cc-mode-popover, html.dark #batchPlanPreviewZoom, html.dark .tall-big-control { color: #cbd5e1 !important; }
+
+/* Dialogs and overlays */
+html.dark .tentative-overlay, html.dark .fabric-picker-overlay, html.dark .machine-evaluation-overlay { background: rgba(0, 0, 0, 0.65) !important; }
+html.dark .tentative-panel, html.dark .fabric-picker-panel, html.dark .machine-evaluation-popup, html.dark .cc-mode-popover, html.dark .dyeable-multi { background: #181c25 !important; border-color: #2a3346 !important; color: #e2e8f0 !important; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important; }
+html.dark .tentative-panel fieldset, html.dark .fabric-picker-choices { border-color: #2a3346 !important; }
+html.dark .fabric-rule-choice, html.dark .cc-mode-fabric, html.dark .dyeable-multi-options label:first-child { border-color: #1e2536 !important; }
+html.dark .cc-mode-colours { border-left-color: #2a3346 !important; }
+html.dark .cc-mode-popover strong { background: rgba(234, 179, 8, 0.2) !important; color: #fde68a !important; }
+html.dark .dyeable-multi[open] summary { background: #252b3b !important; border-bottom-color: #2a3346 !important; }
+html.dark .batch-plan-preview-overlay { background: #0f1117 !important; }
+html.dark .batch-plan-preview-panel { background: #151921 !important; border-color: #2a3346 !important; }
+html.dark .batch-plan-preview-toolbar { background: #181c25 !important; border-bottom-color: #2a3346 !important; }
+html.dark .dyeable-summary-scroll { background: #0f1117 !important; }
+html.dark #dyeableSummaryPaper, html.dark .batch-process-card, html.dark .batch-plan-preview-page.report { color-scheme: light; }
+html.dark #batchCardPrintView { background: #0f1117; padding: 12px; }
+
+/* Inline styles in the page markup (upload box headings) */
+html.dark [style*="border-bottom:1px solid #e4ebf2"] { border-bottom-color: #1e2536 !important; }
+html.dark [style*="color:#64748b"] { color: #94a3b8 !important; }
+
+/* Scrollbars */
+html.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.dark ::-webkit-scrollbar-track { background: #0f1117; }
+html.dark ::-webkit-scrollbar-thumb { background: #2a3346; border-radius: 5px; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #3b4560; }
+}

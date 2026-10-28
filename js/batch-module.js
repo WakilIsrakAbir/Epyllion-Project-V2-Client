@@ -3,7 +3,6 @@
 // Opens batch.html (Batch Plan, Batch Card, Batch Report and the three
 // Setup pages from the Batch Plan demo) inside the main area.
 // ==========================================================
-const BATCH_API_BASE = "https://abir-backend-api.onrender.com";
 
 // route -> [tab title, sidebar menu id, permission group, permission key]
 const BATCH_ROUTES = {
@@ -17,21 +16,22 @@ const BATCH_ROUTES = {
   "report/daily": ["Daily Confirm Batch Plan", "menu-batch-report-daily", "batchReport", "dailyConfirm"],
 };
 
-/* Plan section 16.3: Batch Plan and Batch Card have one submenu per Dyeing Plan unit in use
-   ([{key, label}], e.g. EFL, EKL, Ext, DTL). The list comes from GET /api/batch/units when the page
-   opens and from batch.html each time it loads its data. A unit route is "plan/<KEY>" or "card/<KEY>";
-   its permission key is the unit key in small letters (menus.batchPlan.dtl). */
-let batchUnits = [];
-const batchUnitCounts = { plan: {}, card: {} };
-
+/* Plan section 18: the Dyeing Plan units (EFL, EKL, Ext, DTL, ...) are tabs in the heading of batch.html.
+   A unit route is "plan/<KEY>" or "card/<KEY>"; its permission key is the unit key in small letters
+   (menus.batchPlan.dtl). The project side keeps one "Batch Plan" tab and one "Batch Card" tab whose route
+   follows the open unit, so a reload or a click on the tab returns to that unit. batch.html itself
+   replaces a unit that is no longer in use (BatchApi.route) and reports the route back (markBatchRoute). */
 function batchRouteInfo(route) {
   if (BATCH_ROUTES[route]) return BATCH_ROUTES[route];
   const match = /^(plan|card)\/([A-Z0-9]{1,40})$/.exec(String(route || ""));
   if (!match) return null;
   const [, kind, key] = match;
-  const unit = batchUnits.find((u) => u.key === key);
-  return [(kind === "plan" ? "Batch Plan · " : "Batch Card · ") + batchEscape(unit ? unit.label : key),
-    "menu-batch-" + kind + "-" + key.toLowerCase(), kind === "plan" ? "batchPlan" : "batchCard", key.toLowerCase()];
+  return [kind === "plan" ? "Batch Plan" : "Batch Card", "menu-batch-" + kind + "-all", kind === "plan" ? "batchPlan" : "batchCard", key.toLowerCase()];
+}
+// The unit pages of Batch Plan share one top tab ("batch:plan"); Batch Card the same ("batch:card").
+function batchTabId(route) {
+  const match = /^(plan|card)(\/|$)/.exec(String(route || ""));
+  return "batch:" + (match ? match[1] : route);
 }
 
 function batchPermissions() {
@@ -42,16 +42,18 @@ function batchHasMenu(group, key) {
   const p = batchPermissions();
   return !!(p && p.menus && p.menus[group] && p.menus[group][key] === true);
 }
-// A unit page can be opened with that unit's permission or with the all-orders permission
-// (the server's canUseFloor rule, lib/batch/source.js).
-function batchCanOpen(group, key) {
-  return batchHasMenu(group, key) || (key !== "all" && batchHasMenu(group, "all"));
-}
 // Any permission in a menu group (the unit keys are not a fixed list).
 function batchHasAnyMenu(group) {
   if (localStorage.getItem("role") === "Admin") return true;
   const p = batchPermissions();
   return !!(p && p.menus && p.menus[group] && Object.values(p.menus[group]).some((v) => v === true));
+}
+/* A unit page can be opened with that unit's permission or with the all-orders permission (the server's
+   canUseFloor rule, lib/batch/source.js). The plain "plan"/"card" route (key "all") opens with any
+   permission of the group: batch.html then shows all orders or the first unit the user may open. */
+function batchCanOpen(group, key) {
+  if (key === "all") return batchHasAnyMenu(group);
+  return batchHasMenu(group, key) || batchHasMenu(group, "all");
 }
 function batchHasAction(key) {
   if (localStorage.getItem("role") === "Admin") return true;
@@ -63,8 +65,37 @@ function batchHasAccess() {
     ["dyeingMc", "flatAllowance", "unitSetup"].some((key) => batchHasMenu("dataManagement", key));
 }
 
+/* The unit opened last on Batch Plan and on Batch Card (plan section 18.3, question 2), kept in this
+   browser so the sidebar item returns to it. */
+const BATCH_LAST_ROUTE_KEY = "batchLastRoute";
+function batchLastRoutes() {
+  try { const v = JSON.parse(localStorage.getItem(BATCH_LAST_ROUTE_KEY) || "null"); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; }
+}
+function rememberBatchRoute(route) {
+  const match = /^(plan|card)(?:\/[A-Z0-9]{1,40})?$/.exec(String(route || ""));
+  if (!match) return;
+  const last = batchLastRoutes();
+  last[match[1]] = route;
+  try { localStorage.setItem(BATCH_LAST_ROUTE_KEY, JSON.stringify(last)); } catch (e) { /* ignore */ }
+}
+// Sidebar click: the route opened last for that kind when the user may still open it, else the plain route.
+function batchMenuRoute(kind) {
+  const last = batchLastRoutes()[kind];
+  const info = last && batchRouteInfo(last);
+  return info && String(last).startsWith(kind + "/") && batchCanOpen(info[2], info[3]) ? last : kind;
+}
+
 // Set when a source file is uploaded or deleted; the Batch Plan page then reloads its data on next open.
 let batchDataStale = false;
+
+// The top tab of this route shows it: one tab per kind, its route is the one opened last.
+function setBatchTab(route, title) {
+  activeTabId = batchTabId(route);
+  const tab = openTabs.find((t) => t.id === activeTabId);
+  if (tab) { tab.dept = route; tab.title = title; }
+  else openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
+  renderTabs();
+}
 
 // fromTab: the user clicked an open top tab, so an open report on that same page is kept.
 function showBatchModule(route, fromTab) {
@@ -76,7 +107,7 @@ function showBatchModule(route, fromTab) {
     return;
   }
   localStorage.setItem("activePage", JSON.stringify({ page: "batch", route }));
-  activeTabId = "batch:" + route;
+  rememberBatchRoute(route);
   hideAllCoreViews();
   document.getElementById("batchModuleView").classList.remove("hidden");
 
@@ -105,110 +136,29 @@ function showBatchModule(route, fromTab) {
   }
 
   if (reloaded) batchDataStale = false;
-  if (!openTabs.find((t) => t.id === activeTabId)) openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
-  renderTabs();
+  setBatchTab(route, title);
   setActiveSidebarMenu(menuId);
   closeSidebarMobile();
 }
 
-// A floor-jump button inside batch.html moved to another unit: show that route as the active tab
-// and sidebar item, without touching the iframe (it already shows the order there).
+// batch.html moved to another unit (a unit tab in its heading, a floor-jump button, a search result, or
+// a unit that is no longer in use): show that route as the open tab and page, without touching the iframe.
 function markBatchRoute(route) {
   const info = batchRouteInfo(route);
   if (!info) return;
   const [title, menuId, group, key] = info;
   if (!batchCanOpen(group, key)) return;
   localStorage.setItem("activePage", JSON.stringify({ page: "batch", route }));
-  activeTabId = "batch:" + route;
-  if (!openTabs.find((t) => t.id === activeTabId)) openTabs.push({ id: activeTabId, title, dept: route, mode: "batch" });
-  renderTabs();
+  rememberBatchRoute(route);
+  setBatchTab(route, title);
   setActiveSidebarMenu(menuId);
 }
 
-function batchEscape(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-/* Builds the unit submenus under Batch Plan and Batch Card from batchUnits, showing only units the
-   user may open, and keeps the counts and the highlighted item. */
-function renderBatchUnitMenus() {
-  for (const [kind, group, listId] of [["plan", "batchPlan", "batchPlanSubmenu"], ["card", "batchCard", "batchCardSubmenu"]]) {
-    const list = document.getElementById(listId);
-    if (!list) continue;
-    list.innerHTML = batchUnits.filter((unit) => batchCanOpen(group, unit.key.toLowerCase())).map((unit) => {
-      const count = batchUnitCounts[kind][unit.key];
-      return `<li><a href="#" id="menu-batch-${kind}-${unit.key.toLowerCase()}"
-        class="sidebar-menu-item submenu-item block py-2 pl-14 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors flex justify-between"
-        onclick="showBatchModule('${kind}/${unit.key}')">${batchEscape(unit.label)} <span class="text-[11px] text-gray-500" data-batch-count="${kind}-${unit.key}">${count === undefined ? "" : count}</span></a></li>`;
-    }).join("");
-  }
-  // Keep the highlight on the open unit page after the list is rebuilt (only while that page is shown).
-  const route = String(activeTabId || "").startsWith("batch:") ? String(activeTabId).slice(6) : "";
-  const info = route && batchRouteInfo(route);
-  const shown = !document.getElementById("batchModuleView")?.classList.contains("hidden");
-  if (info && shown && /^(plan|card)\//.test(route)) setActiveSidebarMenu(info[1]);
-}
-
-function setBatchUnits(units) {
-  if (!Array.isArray(units)) return;
-  batchUnits = units.filter((u) => u && /^[A-Z0-9]{1,40}$/.test(String(u.key || "")))
-    .map((u) => ({ key: String(u.key), label: String(u.label || u.key).replace(/[<>&"'`]/g, "").trim() || String(u.key) }));
-  renderBatchUnitMenus();
-  // Open unit tabs show the unit's name once the list is known.
-  let renamed = false;
-  for (const tab of openTabs) {
-    if (tab.mode !== "batch" || !/^(plan|card)\//.test(tab.dept)) continue;
-    const info = batchRouteInfo(tab.dept);
-    if (info && tab.title !== info[0]) { tab.title = info[0]; renamed = true; }
-  }
-  if (renamed) renderTabs();
-}
-
-// GET /api/batch/units: the unit list for the sidebar before batch.html is opened.
-// Resolves to true when the list was loaded.
-let batchUnitsRequest = null;
-function loadBatchUnits() {
-  if (!localStorage.getItem("token") || !batchHasAccess()) return Promise.resolve(false);
-  if (batchUnitsRequest) return batchUnitsRequest;
-  batchUnitsRequest = fetch(BATCH_API_BASE + "/api/batch/units")
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      if (!data || !Array.isArray(data.units)) return false;
-      setBatchUnits(data.units);
-      return true;
-    })
-    .catch((error) => { console.warn("Batch units not loaded:", error); return false; })
-    .finally(() => { batchUnitsRequest = null; });
-  return batchUnitsRequest;
-}
-
-// A saved unit page whose unit is no longer in the list: all orders for a user who may see them,
-// else the first unit the user may open, else nothing (null).
-function batchRestoreRoute(route) {
-  const [kind, key] = route.split("/");
-  if (batchUnits.some((u) => u.key === key)) return route;
-  const group = kind === "plan" ? "batchPlan" : "batchCard";
-  if (batchHasMenu(group, "all")) return kind;
-  const unit = batchUnits.find((u) => batchCanOpen(group, u.key.toLowerCase()));
-  return unit ? kind + "/" + unit.key : null;
-}
-
-// Messages from batch.html: the unit list with counts (Batch Plan: orders per unit; Batch Card: confirmed
-// orders per unit) and the route after a floor-jump button.
+// Messages from batch.html: the route after a unit change inside the page.
 window.addEventListener("message", (event) => {
   const frame = document.getElementById("batchModuleFrame");
   if (!frame || event.source !== frame.contentWindow || !event.data) return;
-  if (event.data.type === "batch-route") { markBatchRoute(String(event.data.route || "")); return; }
-  if (event.data.type !== "batch-counts") return;
-  batchUnitCounts.plan = event.data.plan || {};
-  batchUnitCounts.card = event.data.card || {};
-  if (Array.isArray(event.data.units)) setBatchUnits(event.data.units);
-  for (const [kind, counts] of [["plan", batchUnitCounts.plan], ["card", batchUnitCounts.card]]) {
-    for (const [floor, count] of Object.entries(counts)) {
-      const span = document.querySelector(`[data-batch-count="${kind}-${floor}"]`);
-      if (span) span.textContent = count;
-    }
-  }
+  if (event.data.type === "batch-route") markBatchRoute(String(event.data.route || ""));
 });
 
 // Called at the end of applyPermissions() in core.js.
@@ -230,15 +180,13 @@ function applyBatchPermissions() {
   if (setupGroup) setupGroup.classList.toggle("hidden", !(anySetup || dropdownVisible));
   if (anySetup) document.getElementById("sidebarDataManagement")?.classList.remove("hidden");
 
-  // Order Management > Batch Plan / Batch Card (unit submenus are built by renderBatchUnitMenus)
-  for (const [groupId, permGroup, prefix, parentMenu] of [["sidebarBatchPlanGroup", "batchPlan", "plan", "orderMenu"], ["sidebarBatchCardGroup", "batchCard", "card", "orderMenu"]]) {
+  // Order Management > Batch Plan / Batch Card: shown with any permission of the group (the unit tabs
+  // inside the page follow the same permissions).
+  for (const [groupId, permGroup, parentMenu] of [["sidebarBatchPlanGroup", "batchPlan", "orderMenu"], ["sidebarBatchCardGroup", "batchCard", "orderMenu"]]) {
     const any = batchHasAnyMenu(permGroup);
-    const header = document.getElementById(`menu-batch-${prefix}-all`);
-    if (header) header.classList.toggle("batch-menu-disabled", !batchHasMenu(permGroup, "all"));
     document.getElementById(groupId)?.classList.toggle("hidden", !any);
     if (any) document.getElementById(parentMenu)?.parentElement.classList.remove("hidden");
   }
-  renderBatchUnitMenus();
 
   // Report > Batch Report
   let anyReport = false;
@@ -262,14 +210,6 @@ function applyBatchPermissions() {
 
 function showBatchTab(route) { showBatchModule(route, true); }
 
-// Batch Plan / Batch Card header: open all orders, or just expand the units when only units are allowed.
-function openBatchGroup(header, submenuId, route) {
-  const [, , group, key] = BATCH_ROUTES[route];
-  const submenu = document.getElementById(submenuId);
-  if (submenu && submenu.classList.contains("hidden")) toggleSubmenu(header, submenuId);
-  if (batchHasMenu(group, key)) showBatchModule(route);
-}
-
 // ---- Hooks into core.js without editing it (functions are global, so they can be wrapped) ----
 (function () {
   const originalHide = hideAllCoreViews;
@@ -285,8 +225,7 @@ function openBatchGroup(header, submenuId, route) {
   const originalDirty = markDataDirty;
   markDataDirty = function () {
     originalDirty.apply(this, arguments);
-    batchDataStale = true;
-    loadBatchUnits(); // new data can bring new units
+    batchDataStale = true; // new data can bring new units and orders
   };
   // Dropdown Master Setup (js/setup.js) can change the unit list that Unit Setup offers: reload the
   // Batch Plan page the next time it is opened, but only when the unit list really changed
@@ -299,7 +238,7 @@ function openBatchGroup(header, submenuId, route) {
     if (typeof original !== "function") continue;
     window[name] = async function () {
       const before = unitListText();
-      try { return await original.apply(this, arguments); } finally { if (unitListText() !== before) { batchDataStale = true; loadBatchUnits(); } }
+      try { return await original.apply(this, arguments); } finally { if (unitListText() !== before) batchDataStale = true; }
     };
   }
   const originalInit = initDashboard;
@@ -308,17 +247,7 @@ function openBatchGroup(header, submenuId, route) {
     let state = null;
     try { state = JSON.parse(localStorage.getItem("activePage") || "null"); } catch (e) { state = null; }
     originalInit.apply(this, arguments);
-    const unitsLoaded = loadBatchUnits();
-    if (!(state && state.page === "batch" && state.route && localStorage.getItem("token"))) return;
-    const route = String(state.route);
-    if (!/^(plan|card)\//.test(route)) { showBatchModule(route); return; }
-    // A unit page waits for the unit list, so a unit that is no longer in use is not opened again.
-    // If the user opened another page meanwhile, that page stays.
-    const tabAtStart = activeTabId;
-    unitsLoaded.then((loaded) => {
-      if (activeTabId !== tabAtStart) return;
-      const target = loaded ? batchRestoreRoute(route) : route;
-      if (target) showBatchModule(target);
-    });
+    // A saved unit page is opened as saved; batch.html replaces a unit that is no longer in use.
+    if (state && state.page === "batch" && state.route && localStorage.getItem("token")) showBatchModule(String(state.route));
   };
 })();

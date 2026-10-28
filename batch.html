@@ -6,7 +6,11 @@
 <title>Batch Plan | Textile Planning Solution</title>
 <!-- Batch Plan module page. Opened inside the project (index.html) in an iframe.
      Built from the Batch Plan demo; data is stored on the backend (/api/batch). -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Project (plan section 18.10): the page follows the project's dark mode before its first paint
+     (js/dark-mode.js keeps the choice in theme-preference; dark is the project's default). -->
+<script>(function () { try { if (localStorage.getItem("theme-preference") !== "light") document.documentElement.classList.add("dark"); } catch (e) { /* ignore */ } })();</script>
+<!-- The spreadsheet library is loaded on demand by ensureExcelReader() in js/batch/batch-app.js (Excel export
+     and upload), so it no longer delays the first paint and the data request. -->
 <link rel="stylesheet" href="css/batch.css">
 <style>
 :root{
@@ -111,10 +115,21 @@ body{
 .top-header{
   display:flex;
   justify-content:space-between;
-  align-items:center;
+  align-items:flex-start;
   gap:15px;
   margin-bottom:18px;
 }
+.top-header-text{min-width:0;flex:1}
+.top-header .badge{margin-top:6px;flex:none}
+/* Project (plan section 18): the Dyeing Plan units are tabs under the heading (they were submenus in
+   the project sidebar). Built by renderUnitTabs() in js/batch/batch-app.js. */
+.unit-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.unit-tab{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #bbc9d9;border-radius:4px;background:#ffffff;color:#1e354f;font-size:12px;font-weight:800;letter-spacing:.3px;cursor:pointer;transition:all .15s ease;font-family:inherit}
+.unit-tab:hover{background:#f1f6fc}
+.unit-tab.active{background:#203348;color:#ffffff;border-color:#203348;box-shadow:0 2px 4px rgba(0,0,0,0.12)}
+.unit-tab.searching{background:#dbe7f3;color:#1e354f;border-color:#9fb6cd}
+.unit-tab span{font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(0,0,0,0.08)}
+.unit-tab.active span{background:rgba(255,255,255,0.22)}
 .eyebrow{
   font-size:11px;
   letter-spacing:1.2px;
@@ -934,21 +949,8 @@ html,body{height:100%;overflow:hidden}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Batch Plan
     </div>
-    <div class="floor-submenus" id="floorSubmenus" aria-label="Batch Plan floors">
-      <button class="nav-floor" data-floor="EFL">EFL Floor <span data-floor-count="EFL">0</span></button>
-      <button class="nav-floor" data-floor="EKL">EKL Floor <span data-floor-count="EKL">0</span></button>
-      <button class="nav-floor" data-floor="EXT">Ext Floor <span data-floor-count="EXT">0</span></button>
-      <button class="nav-floor" data-floor="PLUVIA">Pluvia Wash <span data-floor-count="PLUVIA">0</span></button>
-      <button class="nav-floor" data-floor="OUTSIDE">Outside Dyeing <span data-floor-count="OUTSIDE">0</span></button>
-    </div>
+    <!-- Project (plan section 18): the demo's floor submenus are gone; the units are tabs in the page heading (#unitTabs). -->
     <div class="nav-item" id="navBatchCard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="3" width="16" height="18"/><path d="M8 8h8M8 12h8M8 16h8"/></svg>Batch Card</div>
-    <div class="floor-submenus" id="cardFloorSubmenus" aria-label="Batch Card floors">
-      <button class="nav-floor" data-card-floor="EFL">EFL Floor <span data-card-floor-count="EFL">0</span></button>
-      <button class="nav-floor" data-card-floor="EKL">EKL Floor <span data-card-floor-count="EKL">0</span></button>
-      <button class="nav-floor" data-card-floor="EXT">Ext Floor <span data-card-floor-count="EXT">0</span></button>
-      <button class="nav-floor" data-card-floor="PLUVIA">Pluvia Wash <span data-card-floor-count="PLUVIA">0</span></button>
-      <button class="nav-floor" data-card-floor="OUTSIDE">Outside Dyeing <span data-card-floor-count="OUTSIDE">0</span></button>
-    </div>
     <div class="nav-item">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
       Knitting Plan
@@ -968,10 +970,21 @@ html,body{height:100%;overflow:hidden}
 
   <!-- MAIN AREA -->
   <main class="main">
+    <!-- Project (plan section 18.10): the project's loading spinner while the data loads (css/batch.css);
+         js/batch/batch-api.js updates the text and the elapsed time. -->
+    <div id="batchLoading" role="status" aria-live="polite">
+      <div class="batch-spinner" aria-hidden="true"><div class="ring-base"></div><div class="ring-a"></div><div class="ring-b"></div><div class="dot"></div></div>
+      <h3 id="batchLoadingTitle">Loading Batch Plan...</h3>
+      <p id="batchLoadingText">Connecting to the server…</p>
+      <p class="batch-loading-hint" id="batchLoadingHint"></p>
+    </div>
     <header class="top-header">
-      <div>
+      <div class="top-header-text">
         <div class="eyebrow" id="viewEyebrow">Planning &amp; Production Info</div>
         <h1 id="viewTitle">Batch Plan Generation</h1>
+        <!-- Project (plan section 18): one tab per Dyeing Plan unit the user may open, plus All Orders for the
+             all-orders permission, with the order counts. Shown on the Batch Plan and Batch Card pages. -->
+        <nav class="unit-tabs hidden" id="unitTabs" aria-label="Batch Plan units"></nav>
       </div>
       <span class="badge" id="viewBadge">
         <span class="badge-dot"></span>
@@ -1001,7 +1014,7 @@ html,body{height:100%;overflow:hidden}
           <div class="search-box-top">
             <div class="search-input-wrap">
               <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="globalSearchInput" class="search-input-top" placeholder="Search Booking No...">
+              <input type="text" id="globalSearchInput" class="search-input-top" placeholder="Search Booking No. / Buyer in all units..." title="Searches every unit you may open; each result names its unit">
             </div>
             <button class="btn-search-action" id="btnRunSearch">Search</button>
             <button class="btn-clear" id="btnClearSearch" title="Clear search">✕</button>
@@ -1185,7 +1198,7 @@ html,body{height:100%;overflow:hidden}
         <button class="status-btn" data-card-status="Partial">PARTIAL LIST <span class="status-count" id="cardCountPartial">0</span></button>
         <button class="status-btn" data-card-status="Completed">COMPLETED LIST <span class="status-count" id="cardCountCompleted">0</span></button>
         <button class="status-btn" data-card-status="Revision">REVISION PENDING LIST <span class="status-count" id="cardCountRevision">0</span></button>
-      </div><input class="col-search-input card-search" id="cardSearch" placeholder="Search order, buyer or batch…" aria-label="Search batch cards"></div>
+      </div><input class="col-search-input card-search" id="cardSearch" placeholder="Search order, buyer or batch in all units…" aria-label="Search batch cards" title="Searches every unit you may open; the Floor column names the unit"></div>
       <p class="floor-scope-note" id="cardScopeLabel"></p><div class="freeze-pane" id="cardRegisterTable"></div>
       <div class="pagination-bar"><label>Show <select id="cardPageSize"><option>10</option><option>20</option><option>50</option><option>100</option><option>All</option></select></label><span id="cardPageInfo"></span><button class="btn secondary" id="cardPrevious">Previous</button><button class="btn secondary" id="cardNext">Next</button></div></div>
       <div id="cardOrderPanel" class="card hidden"><div class="card-view-toolbar"><button class="btn secondary" id="btnCardOrderBack">← Back to Lists</button></div><div id="cardOrderContent"></div></div>
