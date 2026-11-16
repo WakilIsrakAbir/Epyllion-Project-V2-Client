@@ -697,6 +697,12 @@
                                 class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
                                 onclick="showDataManagementView()">Source File Upload</a>
                         </li>
+                        <!-- Atlas Monitor (js/atlas-monitor.js shows it for Admin or the atlasMonitor permission) -->
+                        <li class="hidden">
+                            <a href="#" id="menu-atlas-monitor"
+                                class="sidebar-menu-item submenu-item block py-2 pl-11 pr-4 border-l-4 border-transparent text-black hover:text-black transition-colors"
+                                onclick="showAtlasMonitor()">Atlas Monitor</a>
+                        </li>
                         <li id="sidebarSetupGroup">
                             <div class="py-2 pl-11 pr-4 flex justify-between items-center text-black cursor-pointer hover:bg-sidebarHover transition-colors"
                                 onclick="toggleSubmenu(this, 'setupSubmenu')">
@@ -1355,6 +1361,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- Atlas Monitor: database health and backup download, rendered by js/atlas-monitor.js -->
+        <div id="atlasMonitorView" class="hidden flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto bg-slate-50"></div>
 
         <!-- ==========================================
              SETUP (DROPDOWNS) VIEW - CLEAN & MODERN
@@ -2530,6 +2539,7 @@
     <script defer src="js/plan-vs-actual-tracking-filter.js"></script>
     <script defer src="js/planning-prod-info.js"></script>
     <script defer src="js/batch-module.js"></script>
+    <script defer src="js/atlas-monitor.js"></script>
 
     <!-- Multi-page ERP A4 Landscape Print Engine Container -->
     <div id="printPagesContainer" aria-hidden="true"></div>

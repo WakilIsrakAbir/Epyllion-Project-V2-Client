@@ -79,6 +79,7 @@ const MENU_GROUPS = [
     icon: "fa-database",
     items: [
       ["view", "Source File Upload"],
+      ["atlasMonitor", "Atlas Monitor"],
       ["setup", "Dropdown Master Setup"],
       ["dyeingMc", "Dyeing MC"],
       ["flatAllowance", "Flat Allowance"],
@@ -552,7 +553,8 @@ function normalizePermissions(rawPermissions, role) {
 
 const BATCH_PERMISSION_KEYS = {
   menus: {
-    dataManagement: ["dyeingMc", "flatAllowance", "unitSetup"],
+    // atlasMonitor is newer still: off for every saved user until an Admin ticks it.
+    dataManagement: ["dyeingMc", "flatAllowance", "unitSetup", "atlasMonitor"],
     batchPlan: ["all", "efl", "ekl", "ext", "pluvia", "outside"],
     batchCard: ["all", "efl", "ekl", "ext", "pluvia", "outside"],
     batchReport: ["dyeableBatch", "dyeableSummary", "dailyConfirm"],
