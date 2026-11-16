@@ -78,21 +78,23 @@ async function loadUploadedFiles() {
     } catch (e) { console.error("Load file err", e); }
 }
 
+// Removes the stored copies of the older versions of one file. The server keeps the file in use (the
+// latest upload) and the upload history, and never touches planning data.
 async function deleteFileGroup(originalName, category) {
-    if (confirm(`Are you sure you want to delete '${originalName}' and all its updated versions?`)) {
+    if (confirm(`Remove the stored copies of the older versions of '${originalName}'?\n\nThe file in use (the latest upload) is kept, the upload history stays, and no planning data is deleted.`)) {
         try {
             const res = await fetch(`https://abir-backend-api.onrender.com/api/files/all`);
             const allFiles = await res.json();
-            const filesToDelete = allFiles.filter(f => f.originalName === originalName && (f.category || 'General') === category);
+            const versions = allFiles.filter(f => f.originalName === originalName && (f.category || 'General') === category && !f.blobDeleted);
 
-            showToast("Deleting files...");
-            for (let f of filesToDelete) {
-                await fetch(`https://abir-backend-api.onrender.com/api/files/${f._id}`, { method: 'DELETE' });
+            showToast("Removing old copies...");
+            let removed = 0;
+            for (let f of versions) {
+                const r = await fetch(`https://abir-backend-api.onrender.com/api/files/${f._id}`, { method: 'DELETE' });
+                if (r.ok) removed++;
             }
-            showToast("All versions deleted!");
-            markDataDirty(); // Invalidate caches
+            showToast(removed ? `${removed} old ${removed === 1 ? 'copy' : 'copies'} removed. The file in use was kept.` : "Only the file in use is stored, and it was kept.");
             loadUploadedFiles();
-            if (activeTabId !== 'dashboard' && activeTabId !== 'dataManagement') fetchAndProcessData();
         } catch (e) { alert("Delete error"); }
     }
 }
