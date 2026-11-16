@@ -59,7 +59,10 @@
   function fmtMB(bytes) {
     if (!bytes) return "0 MB";
     const v = bytes / MB;
-    if (v < 0.1) return "<0.1 MB";
+    if (v < 0.1) { // small sizes keep their real value, in KB
+      const kb = bytes / 1024;
+      return (kb < 10 ? String(Math.round(kb * 10) / 10) : Math.round(kb).toLocaleString("en-US")) + " KB";
+    }
     return (v >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(1)) + " MB";
   }
   const fmtInt = n => Number(n || 0).toLocaleString("en-US");
@@ -477,40 +480,105 @@ html.dark .am-root{--am-page:#0f1117;--am-card:#151a24;--am-ink:#f0efec;--am-ink
     });
   }
 
-  // Stacked horizontal bars: plan status per department (4 categorical series, fixed order)
+  // Part widths proportional to the values within `full` (less the gaps), each at least `min`,
+  // so a small number is drawn small but never disappears.
+  function segmentWidths(values, full, gap, min) {
+    const room = Math.max(0, full - gap * (values.length - 1));
+    const fixed = new Set();
+    for (;;) {
+      const freeSum = values.reduce((a, v, i) => (fixed.has(i) ? a : a + v), 0);
+      const free = room - fixed.size * min;
+      const w = values.map((v, i) => (fixed.has(i) ? min : (free * v) / freeSum));
+      const small = values.map((v, i) => i).filter(i => !fixed.has(i) && w[i] < min);
+      if (!small.length) return w;
+      small.forEach(i => fixed.add(i));
+    }
+  }
+
+  // Stacked horizontal bars: plan status per department (4 categorical series, fixed order).
+  // Every part above zero is drawn and every number is shown: inside its part when it fits,
+  // otherwise under the bar, beside a swatch of the part's colour.
   function statusChart(box, width) {
     const deps = DEPT_LABELS.map(([key, label]) => ({ key, label, c: stats.orders.departments[key] || {} }));
     deps.forEach(d => { d.total = STATUS_SERIES.reduce((a, [k]) => a + (d.c[k] || 0), 0); });
+    const fileUploaded = stats.orders.fileUploaded || {};
+    const doneAllTime = (stats.plans && stats.plans.completed) || {};
     const legend = h("div", { class: "flex flex-wrap gap-x-4 gap-y-1 mb-2" }, STATUS_SERIES.map(([name, color]) =>
       h("span", { class: "inline-flex items-center gap-1.5 text-[11px] am-ink2" }, [h("span", { style: `display:inline-block;width:10px;height:10px;border-radius:2px;background:var(${color})` }), name])));
     box.appendChild(legend);
-    const rowH = 38, barH = 22, labelW = 76, valueW = 54;
-    const height = deps.length * rowH + 4;
+    const barH = 22, padY = 8, labelW = 76, valueW = 54, GAP = 2, MIN_SEG = 3, chipGap = 10;
     const pw = Math.max(60, width - labelW - valueW);
     const max = Math.max(1, ...deps.map(d => d.total));
-    const svg = svgRoot(box, width, height, "Plan status by department: " + deps.map(d => `${d.label} ${d.total} orders`).join(", "));
-    deps.forEach((d, i) => {
-      const cy = 2 + i * rowH + rowH / 2, top = cy - barH / 2;
+    const svg = svgRoot(box, width, deps.length * (barH + padY * 2) + 4, "Plan status by department: " + deps.map(d =>
+      `${d.label} ${d.total} orders` + (d.total ? " (" + STATUS_SERIES.map(([k]) => `${k} ${d.c[k] || 0}`).join(", ") + ")" : "")).join("; "));
+    let rowTop = 2;
+    deps.forEach(d => {
+      let rowH = barH + padY * 2;
+      const top = rowTop + padY, cy = top + barH / 2;
+      const wash = s("rect", { x: 0, y: rowTop, width, height: rowH, rx: 6, style: "fill:transparent" }, svg); // hover highlight
       s("text", { x: labelW - 10, y: cy + 4, "text-anchor": "end", style: "fill:var(--am-ink2);font-size:12px", text: d.label }, svg);
-      if (!d.total) { s("text", { x: labelW, y: cy + 4, style: "fill:var(--am-muted);font-size:11px", text: "No orders in the latest file" }, svg); return; }
-      const full = (d.total / max) * pw;
+      if (!d.total) {
+        const msg = fileUploaded[d.key] === false ? `No ${d.label} file uploaded yet` : "No orders in the latest file";
+        s("text", { x: labelW, y: cy + 4, style: "fill:var(--am-muted);font-size:11px", text: msg }, svg);
+        rowTop += rowH;
+        return;
+      }
       const parts = STATUS_SERIES.map(([k, color, on]) => ({ k, color, on, n: d.c[k] || 0 })).filter(p => p.n > 0);
+      const widths = segmentWidths(parts.map(p => p.n), (d.total / max) * pw, GAP, MIN_SEG);
+      const outside = [];
       let x0 = labelW;
       parts.forEach((p, j) => {
-        const lastPart = j === parts.length - 1;
-        const w = (p.n / d.total) * full - (lastPart ? 0 : 2); // 2px surface gap between segments
-        if (w <= 0) { x0 += (p.n / d.total) * full; return; }
-        const seg = lastPart ? s("path", { d: roundedRight(x0, top, w, barH, 4), style: `fill:var(${p.color})` }, svg)
-          : s("rect", { x: x0, y: top, width: w, height: barH, style: `fill:var(${p.color})` }, svg);
+        const w = widths[j];
+        p.x = x0;
+        if (j === parts.length - 1) s("path", { d: roundedRight(x0, top, w, barH, 4), style: `fill:var(${p.color})` }, svg);
+        else s("rect", { x: x0, y: top, width: w, height: barH, style: `fill:var(${p.color})` }, svg);
         const label = s("text", { x: x0 + 6, y: cy + 4, style: `fill:var(${p.on});font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none`, text: fmtInt(p.n) }, svg);
-        if (label.getComputedTextLength() + 12 > w) label.remove(); // a label that does not fit is left to the tooltip and table
-        const share = pct(p.n, d.total);
-        seg.addEventListener("pointermove", e => { seg.style.opacity = "0.85"; showTip(e.clientX, e.clientY, d.label, [{ value: fmtInt(p.n), label: `${p.k} · ${share}%`, color: p.color }, { value: fmtInt(d.total), label: "orders" }]); });
-        seg.addEventListener("pointerleave", () => { seg.style.opacity = ""; hideTip(); });
-        x0 += w + (lastPart ? 0 : 2);
+        if (label.getComputedTextLength() + 12 > w) { label.remove(); outside.push(p); } // shown under the bar instead
+        x0 += w + GAP;
       });
-      s("text", { x: labelW + full + 6, y: cy + 4, style: "fill:var(--am-ink2);font-size:11px;font-variant-numeric:tabular-nums", text: fmtInt(d.total) }, svg);
+      s("text", { x: x0 - GAP + 6, y: cy + 4, style: "fill:var(--am-ink2);font-size:11px;font-variant-numeric:tabular-nums", text: fmtInt(d.total) }, svg);
+      if (outside.length) {
+        // One line under the bar: swatch + number, each starting under its own part,
+        // pushed right so they never overlap, and pulled back in at the right edge.
+        const chipTop = top + barH + 5;
+        const chips = outside.map(p => {
+          const g = s("g", {}, svg);
+          s("rect", { x: 0, y: 1, width: 8, height: 8, rx: 2, style: `fill:var(${p.color})` }, g);
+          const t = s("text", { x: 12, y: 9, style: "fill:var(--am-ink2);font-size:11px;font-variant-numeric:tabular-nums", text: fmtInt(p.n) }, g);
+          return { g, want: p.x, w: 12 + t.getComputedTextLength() };
+        });
+        let prevEnd = -Infinity;
+        chips.forEach(c => { c.x = Math.max(c.want, prevEnd + chipGap); prevEnd = c.x + c.w; });
+        let limit = width - 2;
+        for (let i = chips.length - 1; i >= 0; i--) {
+          chips[i].x = Math.max(labelW, Math.min(chips[i].x, limit - chips[i].w));
+          limit = chips[i].x - chipGap;
+        }
+        chips.forEach(c => c.g.setAttribute("transform", `translate(${c.x},${chipTop})`));
+        rowH += 17;
+      }
+      wash.setAttribute("height", rowH);
+      // The whole row is the hover target, so even a 3px part is easy to reach.
+      const hit = s("rect", { x: 0, y: rowTop, width, height: rowH, style: "fill:transparent" }, svg);
+      hit.addEventListener("pointermove", e => {
+        wash.style.fill = "var(--am-wash)";
+        const rows = STATUS_SERIES.map(([k, color]) => ({ value: fmtInt(d.c[k] || 0), label: `${k} · ${pct(d.c[k] || 0, d.total)}%`, color }));
+        rows.push({ value: fmtInt(d.total), label: "orders in the latest file" });
+        if (doneAllTime[d.key] !== undefined) rows.push({ value: fmtInt(doneAllTime[d.key]), label: "completed, all time" });
+        showTip(e.clientX, e.clientY, d.label, rows);
+      });
+      hit.addEventListener("pointerleave", () => { wash.style.fill = "transparent"; hideTip(); });
+      rowTop += rowH;
     });
+    svg.setAttribute("height", rowTop + 2);
+    svg.setAttribute("viewBox", `0 0 ${width} ${rowTop + 2}`);
+    if (stats.plans && stats.plans.completed) {
+      box.appendChild(h("p", { class: "text-[11px] am-ink2 mt-2 leading-relaxed" }, [
+        h("span", { class: "font-semibold am-ink", text: "Completed plans, all time: " }),
+        DEPT_LABELS.map(([key, label]) => `${label} ${fmtInt(doneAllTime[key])}`).join(" · "),
+        h("span", { class: "am-muted", text: ". Most completed orders are no longer in the latest file, so the bars above show only a few." }),
+      ]));
+    }
   }
 
   // Columns: uploads per day (single series)
@@ -556,8 +624,9 @@ html.dark .am-root{--am-page:#0f1117;--am-card:#151a24;--am-ink:#f0efec;--am-ink
       head = ["Collection", "Documents", "Data", "On disk", "Free inside", "Index"];
       rows = [...stats.collections].sort((a, b) => b.size - a.size).map(c => [c.name, fmtInt(c.count), fmtMB(c.size), fmtMB(c.storageSize), fmtMB(c.freeStorageSize), fmtMB(c.indexSize)]);
     } else if (id === "status") {
-      head = ["Department", ...STATUS_SERIES.map(([k]) => k), "Total"];
-      rows = DEPT_LABELS.map(([key, label]) => { const c = stats.orders.departments[key] || {}; const vals = STATUS_SERIES.map(([k]) => c[k] || 0); return [label, ...vals.map(fmtInt), fmtInt(vals.reduce((a, n) => a + n, 0))]; });
+      const done = (stats.plans && stats.plans.completed) || {};
+      head = ["Department", ...STATUS_SERIES.map(([k]) => k), "Total", "Completed (all time)"];
+      rows = DEPT_LABELS.map(([key, label]) => { const c = stats.orders.departments[key] || {}; const vals = STATUS_SERIES.map(([k]) => c[k] || 0); return [label, ...vals.map(fmtInt), fmtInt(vals.reduce((a, n) => a + n, 0)), done[key] === undefined ? "-" : fmtInt(done[key])]; });
     } else {
       head = ["Day", "Files", "By category"];
       rows = [...(stats.uploads.perDay || [])].reverse().map(d => [fmtDay(d.day, true), fmtInt(d.total), Object.entries(d.byCategory || {}).map(([c, n]) => `${c} ${n}`).join(", ") || "-"]);
