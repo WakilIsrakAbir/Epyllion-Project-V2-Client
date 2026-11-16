@@ -69,34 +69,3 @@ function closeSidebarMobile() {
         XLSX.utils.book_append_sheet(wb, ws, "Completed List");
         XLSX.writeFile(wb, `${activeTabId.replace('_report', '')}_Completed_List.xlsx`);
     }
-
-        async function clearAllPlanningData() {
-            if (confirm("⚠️ WARNING: Are you sure you want to delete ALL saved planning, statuses, AND all uploaded Excel files? This action will completely reset the system.")) {
-                const adminPassword = prompt("Please enter your Admin Password to confirm complete system wipe:");
-                if (!adminPassword) {
-                    showToast("Action cancelled. Admin password required.");
-                    return;
-                }
-
-                showToast("Initiating complete system wipe...");
-                try {
-                    const res = await fetch('https://abir-backend-api.onrender.com/api/files/clear-all-planning', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ adminPassword })
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                        showToast("System completely reset! All data and files deleted.");
-                        markDataDirty();
-                        loadUploadedFiles();
-                        await fetchAndProcessData(true);
-                        renderMainTable();
-                    } else {
-                        showToast(data.message || "Failed to clear database. Invalid password or permissions.", true);
-                    }
-                } catch (e) {
-                    showToast("Server Connection Error!", true);
-                }
-            }
-        }

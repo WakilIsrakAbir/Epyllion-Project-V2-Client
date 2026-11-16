@@ -230,7 +230,6 @@ const ACTION_GROUPS = [
       ["uploadDelivery", "Upload Delivery Data"],
       ["uploadBP", "Upload BP Data"],
       ["deleteFiles", "Delete Uploaded Files"],
-      ["wipeSystem", "Wipe System Data"],
     ],
   },
   {
@@ -548,8 +547,14 @@ function normalizePermissions(rawPermissions, role) {
     if (isMissing(rawPermissions.downloads, key)) normalized.downloads[key] = false;
   });
 
+  // Permissions of removed features: dropped, so the next save of this user clears them.
+  REMOVED_ACTION_KEYS.forEach((key) => delete normalized.actions[key]);
+
   return normalized;
 }
+
+// "Wipe System & Files" (System Maintenance / Danger Zone) was removed from the app.
+const REMOVED_ACTION_KEYS = ["wipeSystem"];
 
 const BATCH_PERMISSION_KEYS = {
   menus: {

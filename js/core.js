@@ -413,9 +413,6 @@ function applyPermissions() {
         setUploadCategory(firstVisibleTab);
       }
 
-      // Hide/show file list and wipe system sections
-      toggleElement("wipeSystemContainer", a.wipeSystem);
-
       if (
         a.uploadGeneral ||
         a.uploadYD ||
