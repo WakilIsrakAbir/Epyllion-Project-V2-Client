@@ -292,6 +292,15 @@ const ACTION_GROUPS = [
   },
 ];
 
+// Pending report download of each department (Report page, Pending card)
+const PENDING_REPORT_KEYS = [
+  "reportPendingExcelYD",
+  "reportPendingExcelKnitting",
+  "reportPendingExcelDyeing",
+  "reportPendingExcelFinishing",
+  "reportPendingExcelDelivery",
+];
+
 const DOWNLOAD_GROUPS = [
   {
     title: "Report Menu",
@@ -303,6 +312,11 @@ const DOWNLOAD_GROUPS = [
       ["reportUpdatedExcelDyeing", "Updated Dyeing Report (Combined)"],
       ["reportUpdatedExcelFinishing", "Updated Finishing Report (Combined)"],
       ["reportUpdatedExcelDelivery", "Updated Delivery Report (Combined)"],
+      ["reportPendingExcelYD", "Pending YD Report"],
+      ["reportPendingExcelKnitting", "Pending Knitting Report"],
+      ["reportPendingExcelDyeing", "Pending Dyeing Report"],
+      ["reportPendingExcelFinishing", "Pending Finishing Report"],
+      ["reportPendingExcelDelivery", "Pending Delivery Report"],
     ],
   },
   {
@@ -441,6 +455,7 @@ function makeTemplate(role) {
       "reportUpdatedExcelDyeing",
       "reportUpdatedExcelFinishing",
       "reportUpdatedExcelDelivery",
+      ...PENDING_REPORT_KEYS,
       "osDetailedExcel",
       "osDetailedPdf",
       "loadDetailedYd",
@@ -479,6 +494,7 @@ function makeTemplate(role) {
       "reportUpdatedExcelDyeing",
       "reportUpdatedExcelFinishing",
       "reportUpdatedExcelDelivery",
+      ...PENDING_REPORT_KEYS,
       "osDetailedExcel",
       "osDetailedPdf",
       // Tracking downloads
@@ -545,6 +561,14 @@ function normalizePermissions(rawPermissions, role) {
   });
   BATCH_PERMISSION_KEYS.downloads.forEach((key) => {
     if (isMissing(rawPermissions.downloads, key)) normalized.downloads[key] = false;
+  });
+
+  // Pending report keys are new: a user saved before they existed keeps the access of the
+  // matching Updated report (the same rule the Report page applies).
+  PENDING_REPORT_KEYS.forEach((key) => {
+    if (isMissing(rawPermissions.downloads, key)) {
+      normalized.downloads[key] = !!normalized.downloads[key.replace("reportPendingExcel", "reportUpdatedExcel")];
+    }
   });
 
   // Permissions of removed features: dropped, so the next save of this user clears them.

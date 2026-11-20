@@ -405,53 +405,53 @@ function renderMainTableFromAPI(data, status) {
   );
 }
 
-// Fetch report data (Confirm + Tentative with full items)
+// Report page: show the Updated (Confirm + Tentative) card and the Pending card for this department
 async function fetchReportData(currentDept) {
   try {
-    // Only check if data exists (fast count query) — don't fetch full data
-    const res = await fetch(
-      `${API_BASE}/api/orders?dept=${currentDept}&status=Confirm&limit=1`,
-    );
-    const tentRes = await fetch(
-      `${API_BASE}/api/orders?dept=${currentDept}&status=Tentative&limit=1`,
-    );
-
-    let hasConfirm = false,
-      hasTentative = false,
-      hasPending = false;
-    if (res && res.ok) {
+    // Only check if data exists (fast count queries) — don't fetch full data
+    const countOrders = async (status) => {
+      const res = await fetch(
+        `${API_BASE}/api/orders?dept=${currentDept}&status=${status}&limit=1`,
+      );
+      if (!res || !res.ok) return 0;
       const d = await res.json();
-      hasConfirm = d.total > 0;
-    }
-    if (tentRes && tentRes.ok) {
-      const d = await tentRes.json();
-      hasTentative = d.total > 0;
-    }
-    if (currentDept === "yd" || currentDept === "delivery") {
-      const pendRes = await fetch(
-        `${API_BASE}/api/orders?dept=${currentDept}&status=Pending&limit=1`,
-      ).catch(() => null);
-      if (pendRes && pendRes.ok) {
-        const pd = await pendRes.json();
-        hasPending = pd.total > 0;
-      }
-    }
+      return d.total || 0;
+    };
+    const [confirmCount, tentativeCount, pendingCount] = await Promise.all([
+      countOrders("Confirm"),
+      countOrders("Tentative"),
+      countOrders("Pending"),
+    ]);
+    const hasConfirm = confirmCount > 0;
+    const hasTentative = tentativeCount > 0;
+    const hasPending = pendingCount > 0;
 
     const cardCombinedReport = document.getElementById("cardCombinedReport");
+    const cardPendingReport = document.getElementById("cardPendingReport");
     const reportEmpty = document.getElementById("reportEmptyState");
     const cardsGrid = document.getElementById("reportCardsGrid");
     const titleEl = document.getElementById("combinedReportTitle");
     const btnTextEl = document.getElementById("combinedReportBtnText");
+    const pendingTitleEl = document.getElementById("pendingReportTitle");
+    const pendingCountEl = document.getElementById("pendingReportCount");
 
     if (titleEl)
       titleEl.innerText = `Updated ${currentDept.toUpperCase()} Report`;
     if (btnTextEl)
       btnTextEl.innerText = `Download ${currentDept.toUpperCase()} Data`;
+    if (pendingTitleEl)
+      pendingTitleEl.innerText = `Pending ${currentDept.toUpperCase()} Report`;
+    if (pendingCountEl)
+      pendingCountEl.innerText = `${pendingCount} pending order${pendingCount === 1 ? "" : "s"}`;
 
-    const hasData = hasConfirm || hasTentative || (hasPending && (currentDept === "yd" || currentDept === "delivery"));
+    // The Updated report of YD and Delivery also includes Pending orders
+    const hasCombined = hasConfirm || hasTentative || (hasPending && (currentDept === "yd" || currentDept === "delivery"));
+    const hasData = hasCombined || hasPending;
 
     if (cardCombinedReport)
-      cardCombinedReport.style.display = hasData ? "flex" : "none";
+      cardCombinedReport.style.display = hasCombined ? "flex" : "none";
+    if (cardPendingReport)
+      cardPendingReport.style.display = hasPending ? "flex" : "none";
 
     if (!hasData) {
       if (cardsGrid) cardsGrid.style.display = "none";
@@ -460,7 +460,7 @@ async function fetchReportData(currentDept) {
         reportEmpty.style.display = "flex";
       }
     } else {
-      if (cardsGrid) cardsGrid.style.display = "grid";
+      if (cardsGrid) cardsGrid.style.display = "flex";
       if (reportEmpty) {
         reportEmpty.classList.add("hidden");
         reportEmpty.style.display = "none";
@@ -499,11 +499,24 @@ async function fetchFullReportDataForExport(currentDept) {
   }
 }
 
-async function exportCombinedReportToExcel() {
+// Updated report: Confirm + Tentative (YD and Delivery also Pending)
+function exportCombinedReportToExcel() {
+  const btn = window.event ? window.event.currentTarget : null;
+  const dept = activeTabId.replace("_report", "").toUpperCase();
+  return downloadDeptReportExcel(btn, "report-download", `${dept} Report`, "Updated");
+}
+
+// Pending report: only the department's Pending orders, same columns as the Updated report
+function exportPendingReportToExcel() {
+  const btn = window.event ? window.event.currentTarget : null;
+  const dept = activeTabId.replace("_report", "").toUpperCase();
+  return downloadDeptReportExcel(btn, "pending-download", `Pending ${dept} Report`, "Pending");
+}
+
+async function downloadDeptReportExcel(btn, endpoint, label, fileTag) {
   const currentDeptLower = activeTabId.replace("_report", "");
 
   // Show loading on the download button
-  const btn = window.event ? window.event.currentTarget : null;
   let btnText = "";
   if (btn) {
     btnText = btn.innerHTML;
@@ -512,17 +525,15 @@ async function exportCombinedReportToExcel() {
     btn.disabled = true;
     btn.style.opacity = "0.7";
   }
-  showToast(
-    `Downloading ${currentDeptLower.toUpperCase()} Report... Please wait.`,
-  );
+  showToast(`Downloading ${label}... Please wait.`);
 
   // Direct download from backend — server generates Excel file
   try {
     const res = await fetch(
-      `${API_BASE}/api/orders/report-download/${currentDeptLower}`,
+      `${API_BASE}/api/orders/${endpoint}/${currentDeptLower}`,
     );
     if (!res.ok) {
-      showToast(`No data found for ${currentDeptLower.toUpperCase()} report!`);
+      showToast(`No data found for ${label}!`);
       return;
     }
     const blob = await res.blob();
@@ -530,12 +541,12 @@ async function exportCombinedReportToExcel() {
     const a = document.createElement("a");
     a.href = url;
     const dateStr = new Date().toISOString().split("T")[0];
-    a.download = `${currentDeptLower.toUpperCase()}_Updated_Report_${dateStr}.xlsx`;
+    a.download = `${currentDeptLower.toUpperCase()}_${fileTag}_Report_${dateStr}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast(`${currentDeptLower.toUpperCase()} Report downloaded!`);
+    showToast(`${label} downloaded!`);
   } catch (e) {
     console.error("Download error:", e);
     showToast("Download failed. Try again.");

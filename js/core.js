@@ -700,18 +700,22 @@ async function loadMenuData(deptKey, menuName, mode = "manage") {
         const permissions = JSON.parse(permsStr);
         if (permissions && permissions.downloads) {
           const d = permissions.downloads;
+          const deptMap = {
+            yd: "YD",
+            knitting: "Knitting",
+            dyeing: "Dyeing",
+            finishing: "Finishing",
+            delivery: "Delivery",
+          };
+          const updatedKey = "reportUpdatedExcel" + deptMap[deptKey];
+          const pendingKey = "reportPendingExcel" + deptMap[deptKey];
           const btn = document.getElementById("btnReportUpdatedExcel");
-          if (btn) {
-            const deptMap = {
-              yd: "YD",
-              knitting: "Knitting",
-              dyeing: "Dyeing",
-              finishing: "Finishing",
-              delivery: "Delivery",
-            };
-            const key = "reportUpdatedExcel" + deptMap[deptKey];
-            btn.style.display = d[key] ? "" : "none";
-          }
+          if (btn) btn.style.display = d[updatedKey] ? "" : "none";
+          // Users saved before the Pending report existed keep the access of the Updated report
+          const canPending =
+            d[pendingKey] !== undefined ? d[pendingKey] : d[updatedKey];
+          const pendingBtn = document.getElementById("btnReportPendingExcel");
+          if (pendingBtn) pendingBtn.style.display = canPending ? "" : "none";
         }
       } catch (e) {}
     }

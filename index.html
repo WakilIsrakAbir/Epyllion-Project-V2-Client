@@ -1609,13 +1609,13 @@
                         class="hidden flex-col items-center text-center p-10 w-full max-w-lg bg-gray-50 border border-gray-200 rounded-xl shadow-sm">
                         <i class="fas fa-folder-open text-5xl text-gray-300 mb-4"></i>
                         <h3 class="text-lg font-bold text-gray-700 mb-2">No Report Data Available</h3>
-                        <p class="text-gray-500 text-sm">There is no Confirmed or Tentative planning data available for this department
+                        <p class="text-gray-500 text-sm">There is no Confirmed, Tentative or Pending planning data available for this department
                             yet.</p>
                     </div>
-                
-                    <div id="reportCardsGrid" class="grid grid-cols-1 gap-4 sm:gap-6 md:gap-10 max-w-[500px] w-full mx-auto">
+
+                    <div id="reportCardsGrid" class="flex flex-col md:flex-row md:items-stretch justify-center gap-4 sm:gap-6 md:gap-10 max-w-[1000px] w-full mx-auto">
                         <div id="cardCombinedReport"
-                            class="hidden bg-white rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-gray-100 p-5 sm:p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 border-t-[5px] border-t-[#3b82f6]">
+                            class="hidden bg-white rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-gray-100 p-5 sm:p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 border-t-[5px] border-t-[#3b82f6] w-full md:max-w-[480px]">
                             <div
                                 class="w-16 h-16 sm:w-20 sm:h-20 bg-[#dbeafe] text-[#2563eb] rounded-full flex items-center justify-center text-3xl sm:text-4xl mb-4 sm:mb-6 shadow-inner">
                                 <i class="fas fa-layer-group"></i>
@@ -1625,6 +1625,21 @@
                             <button id="btnReportUpdatedExcel" onclick="exportCombinedReportToExcel()"
                                 class="mt-auto w-full max-w-[280px] py-3 sm:py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold rounded shadow-md transition-colors flex justify-center items-center gap-2">
                                 <i class="fas fa-file-excel text-lg"></i> <span id="combinedReportBtnText">Download Data</span>
+                            </button>
+                        </div>
+
+                        <div id="cardPendingReport"
+                            class="hidden bg-white rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-gray-100 p-5 sm:p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 border-t-[5px] border-t-[#f59e0b] w-full md:max-w-[480px]">
+                            <div
+                                class="w-16 h-16 sm:w-20 sm:h-20 bg-[#fef3c7] text-[#d97706] rounded-full flex items-center justify-center text-3xl sm:text-4xl mb-4 sm:mb-6 shadow-inner">
+                                <i class="fas fa-hourglass-half"></i>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4" id="pendingReportTitle">Pending Report</h3>
+                            <p class="text-gray-500 text-[12px] sm:text-[13px] mb-2 leading-relaxed">Extract only <strong class="text-gray-700">Pending</strong> orders (not yet planned as Confirm or Tentative). All buyers will be combined into a <strong class="text-gray-700">single sheet.</strong></p>
+                            <p id="pendingReportCount" class="text-[12px] sm:text-[13px] font-semibold text-[#b45309] dark:text-amber-400 mb-6 sm:mb-8"></p>
+                            <button id="btnReportPendingExcel" onclick="exportPendingReportToExcel()"
+                                class="mt-auto w-full max-w-[280px] py-3 sm:py-3.5 bg-[#d97706] hover:bg-[#b45309] text-white font-bold rounded shadow-md transition-colors flex justify-center items-center gap-2">
+                                <i class="fas fa-file-excel text-lg"></i> <span id="pendingReportBtnText">Download Pending Data</span>
                             </button>
                         </div>
                     </div>
